@@ -25,6 +25,10 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
+# catch-all for any .env variants
+.env*
+!.env.example
+
 # system files
 .DS_Store
 Thumbs.db

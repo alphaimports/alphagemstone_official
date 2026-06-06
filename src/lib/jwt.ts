@@ -20,8 +20,6 @@ export function signToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
 }
 
 export function verifyToken(token: string): JWTPayload {
-  console.log('Secret prefix:', JWT_SECRET!.slice(0, 6));
-  console.log('Token prefix:', token.slice(0, 20));
   return jwt.verify(token, JWT_SECRET!) as JWTPayload;
 }
 

@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { reorderCategories } from '@/services/category.service';
+import { withAdmin } from '@/middleware/auth.middleware';
 import { successResponse, errorResponse } from '@/lib/api-response';
 
-export async function PATCH(req: NextRequest) {
+export const PATCH = withAdmin(async (req: NextRequest) => {
   try {
     await connectDB();
 
@@ -29,4 +30,4 @@ export async function PATCH(req: NextRequest) {
     const message = err instanceof Error ? err.message : 'Failed to reorder categories';
     return errorResponse(message, 500);
   }
-}
+});

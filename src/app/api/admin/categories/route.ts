@@ -16,7 +16,7 @@ export const POST = withAdmin(async (req: NextRequest) => {
   }
 });
 
-export async function GET() {
+export const GET = withAdmin(async () => {
   try {
     await connectDB();
     const categories = await listCategories();
@@ -24,4 +24,4 @@ export async function GET() {
   } catch {
     return errorResponse('Failed to fetch categories', 500);
   }
-}
+});

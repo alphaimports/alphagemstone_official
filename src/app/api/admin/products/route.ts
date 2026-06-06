@@ -59,7 +59,7 @@ export const POST = withAdmin(async (req) => {
 
     const parsed = productSchema.safeParse(body);
     if (!parsed.success) {
-      console.error("ZOD ERRORS:", JSON.stringify(parsed.error.flatten(), null, 2));
+      
       return errorResponse("Validation failed", 400, parsed.error.flatten().fieldErrors);
     }
 
@@ -91,7 +91,7 @@ export const POST = withAdmin(async (req) => {
     const product = await createProduct(productData as never);
     return successResponse(product, 201);
   } catch (err) {
-    console.error("[POST /api/admin/products]", err);
+   
     return errorResponse(
       err instanceof Error ? err.message : "Failed to create product",
       500,

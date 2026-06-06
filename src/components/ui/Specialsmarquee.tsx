@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -25,110 +25,256 @@ interface ApiProduct {
   stock: number;
   isActive: boolean;
   description?: string;
-  // watch fields
   watchBrand?: string;
-  watchGender?: string;
   watchMovement?: string;
-  watchStyle?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Map category name → accent color
-const CATEGORY_COLORS: Record<string, string> = {
-  diamond:  "#b8960c",
-  diamonds: "#b8960c",
-  gemstone: "#1a3a6e",
-  gemstones:"#1a3a6e",
-  jewelry:  "#1a6e3a",
-  watches:  "#334155",
-  watch:    "#334155",
-  alpha:    "#c0392b",
+const ACCENTS: Record<string, string> = {
+  diamond:  "#7dd3fc", diamonds: "#7dd3fc",
+  gemstone: "#6ee7b7", gemstones:"#6ee7b7",
+  jewelry:  "#fca5a5", watches:  "#c4b5fd",
+  watch:    "#c4b5fd", alpha:    "#fcd34d",
 };
 
-function getCategoryColor(name: string): string {
+function getAccent(name: string): string {
   const key = name.toLowerCase().replace(/\s+/g, "");
-  for (const [k, v] of Object.entries(CATEGORY_COLORS)) {
-    if (key.includes(k)) return v;
-  }
-  // deterministic fallback from name hash
-  const hue = [...name].reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
-  return `hsl(${hue}, 45%, 30%)`;
+  for (const [k, v] of Object.entries(ACCENTS)) if (key.includes(k)) return v;
+  const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  return `hsl(${hue},55%,72%)`;
 }
 
-// Subtitle line: shape + size or brand
 function getSubtitle(p: ApiProduct): string {
   if (p.watchBrand) return `${p.watchBrand}${p.watchMovement ? ` · ${p.watchMovement}` : ""}`;
   const parts: string[] = [];
   if (p.shape?.length) parts.push(p.shape[0].charAt(0).toUpperCase() + p.shape[0].slice(1));
-  if (p.size)          parts.push(`${p.size} ct`);
+  if (p.size) parts.push(`${p.size} ct`);
   if (p.clarity?.length) parts.push(p.clarity[0]);
   return parts.join(" · ") || (p.category?.name ?? "");
 }
 
-// ── Gem SVG fallback (when no image) ─────────────────────────────────────────
+// ── Gem SVG ───────────────────────────────────────────────────────────────────
 
 function GemShape({ shape = "other", color }: { shape?: string; color: string }) {
   const s = shape.toLowerCase();
   if (s.includes("round") || s.includes("brilliant")) return (
-    <svg viewBox="0 0 80 80" width="52" height="52">
-      <polygon points="40,8 68,22 74,50 58,68 22,68 6,50 12,22" fill={`${color}18`} stroke={color} strokeWidth="1.2"/>
-      <polygon points="40,16 60,26 65,46 52,60 28,60 15,46 20,26" fill={`${color}10`} stroke={color} strokeWidth="0.6"/>
-      <line x1="40" y1="8" x2="40" y2="68" stroke={color} strokeWidth="0.4" opacity="0.4"/>
-      <line x1="6" y1="50" x2="74" y2="50" stroke={color} strokeWidth="0.4" opacity="0.4"/>
+    <svg viewBox="0 0 80 80" width="60" height="60">
+      <polygon points="40,8 68,22 74,50 58,68 22,68 6,50 12,22" fill={`${color}20`} stroke={color} strokeWidth="1"/>
+      <polygon points="40,16 60,26 65,46 52,60 28,60 15,46 20,26" fill={`${color}0c`} stroke={color} strokeWidth="0.5"/>
+      <circle cx="40" cy="40" r="3" fill={color} opacity="0.4"/>
     </svg>
   );
-  if (s.includes("oval") || s.includes("pear") || s.includes("marquise")) return (
-    <svg viewBox="0 0 80 80" width="52" height="52">
-      <ellipse cx="40" cy="40" rx="30" ry="22" fill={`${color}18`} stroke={color} strokeWidth="1.2"/>
-      <ellipse cx="40" cy="40" rx="22" ry="14" fill={`${color}10`} stroke={color} strokeWidth="0.6"/>
-      <line x1="10" y1="40" x2="70" y2="40" stroke={color} strokeWidth="0.4" opacity="0.4"/>
-      <line x1="40" y1="18" x2="40" y2="62" stroke={color} strokeWidth="0.4" opacity="0.4"/>
+  if (s.includes("oval") || s.includes("pear")) return (
+    <svg viewBox="0 0 80 80" width="60" height="60">
+      <ellipse cx="40" cy="40" rx="30" ry="22" fill={`${color}20`} stroke={color} strokeWidth="1"/>
+      <ellipse cx="40" cy="40" rx="20" ry="13" fill={`${color}0c`} stroke={color} strokeWidth="0.5"/>
     </svg>
   );
-  if (s.includes("cushion") || s.includes("asscher")) return (
-    <svg viewBox="0 0 80 80" width="52" height="52">
-      <rect x="14" y="14" width="52" height="52" rx="12" fill={`${color}18`} stroke={color} strokeWidth="1.2"/>
-      <rect x="22" y="22" width="36" height="36" rx="6" fill={`${color}10`} stroke={color} strokeWidth="0.6"/>
-      <line x1="14" y1="40" x2="66" y2="40" stroke={color} strokeWidth="0.4" opacity="0.4"/>
-      <line x1="40" y1="14" x2="40" y2="66" stroke={color} strokeWidth="0.4" opacity="0.4"/>
-    </svg>
-  );
-  if (s.includes("princess") || s.includes("radiant") || s.includes("emerald")) return (
-    <svg viewBox="0 0 80 80" width="52" height="52">
-      <rect x="16" y="16" width="48" height="48" rx="3" fill={`${color}18`} stroke={color} strokeWidth="1.2"/>
-      <rect x="24" y="24" width="32" height="32" rx="2" fill={`${color}10`} stroke={color} strokeWidth="0.6"/>
-      <line x1="16" y1="40" x2="64" y2="40" stroke={color} strokeWidth="0.4" opacity="0.4"/>
-      <line x1="40" y1="16" x2="40" y2="64" stroke={color} strokeWidth="0.4" opacity="0.4"/>
-    </svg>
-  );
-  if (s.includes("heart")) return (
-    <svg viewBox="0 0 80 80" width="52" height="52">
-      <path d="M40 62 C40 62 12 44 12 26 C12 18 18 12 26 12 C32 12 37 16 40 20 C43 16 48 12 54 12 C62 12 68 18 68 26 C68 44 40 62 40 62Z"
-        fill={`${color}18`} stroke={color} strokeWidth="1.2"/>
-      <path d="M40 54 C40 54 18 40 18 28 C18 22 22 18 28 18 C33 18 37 22 40 26 C43 22 47 18 52 18 C58 18 62 22 62 28 C62 40 40 54 40 54Z"
-        fill={`${color}10`} stroke={color} strokeWidth="0.6"/>
-    </svg>
-  );
-  // default hexagon
   return (
-    <svg viewBox="0 0 80 80" width="52" height="52">
-      <polygon points="40,8 66,23 66,57 40,72 14,57 14,23" fill={`${color}18`} stroke={color} strokeWidth="1.2"/>
-      <polygon points="40,18 58,28 58,52 40,62 22,52 22,28" fill={`${color}10`} stroke={color} strokeWidth="0.6"/>
-      <line x1="14" y1="40" x2="66" y2="40" stroke={color} strokeWidth="0.4" opacity="0.4"/>
+    <svg viewBox="0 0 80 80" width="60" height="60">
+      <polygon points="40,6 70,22 70,58 40,74 10,58 10,22" fill={`${color}20`} stroke={color} strokeWidth="1"/>
+      <polygon points="40,18 60,28 60,52 40,62 20,52 20,28" fill={`${color}0c`} stroke={color} strokeWidth="0.5"/>
+      <circle cx="40" cy="40" r="3" fill={color} opacity="0.4"/>
     </svg>
   );
 }
 
-// ── Product Card ──────────────────────────────────────────────────────────────
+// ── Featured Card (large left) ────────────────────────────────────────────────
 
-function ProductCard({ product }: { product: ApiProduct }) {
+function FeaturedCard({ product }: { product: ApiProduct }) {
   const [hovered, setHovered] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const accent = getAccent(product.category?.name ?? "");
+  const hasImg = product.images?.length > 0 && !imgError;
 
-  const color    = getCategoryColor(product.category?.name ?? "");
-  const subtitle = getSubtitle(product);
-  const hasImage = product.images?.length > 0 && !imgError;
+  return (
+    <Link
+      href={`/products/${product._id}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="sm-featured-card"
+      style={{
+        textDecoration: "none",
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+        overflow: "hidden",
+        borderRadius: 3,
+        background: "#080f1f",
+        border: `1px solid ${hovered ? accent + "50" : "#1e3a5f33"}`,
+        cursor: "pointer",
+        transition: "border-color 0.4s ease, box-shadow 0.4s ease",
+        boxShadow: hovered
+          ? `0 32px 80px rgba(0,0,0,0.6), inset 0 1px 0 ${accent}22`
+          : "0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.02)",
+      }}
+    >
+      {/* Full bleed image */}
+      <div style={{ flex: 1, position: "relative", minHeight: 0, overflow: "hidden" }}>
+        {hasImg ? (
+          <img
+            src={product.images[0]}
+            alt={product.name}
+            onError={() => setImgError(true)}
+            style={{
+              width: "100%", height: "100%",
+              objectFit: "cover", display: "block",
+              transform: hovered ? "scale(1.06)" : "scale(1)",
+              transition: "transform 0.7s cubic-bezier(0.22,1,0.36,1)",
+            }}
+          />
+        ) : (
+          <div style={{
+            width: "100%", height: "100%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: `radial-gradient(ellipse at center, ${accent}12 0%, transparent 70%)`,
+          }}>
+            <GemShape shape={product.shape?.[0]} color={accent} />
+          </div>
+        )}
+
+        {/* Gradient overlay */}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(to top, #040e1f 0%, #040e1f88 30%, transparent 65%)",
+          pointerEvents: "none",
+        }} />
+
+        {/* Top accent line */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: 2,
+          background: `linear-gradient(90deg, transparent, ${accent}cc, transparent)`,
+          opacity: hovered ? 1 : 0,
+          transition: "opacity 0.4s",
+        }} />
+
+        {/* Category badge top-left */}
+        <div style={{
+          position: "absolute", top: 16, left: 16,
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: 9, fontWeight: 700,
+          letterSpacing: "0.2em", textTransform: "uppercase",
+          color: accent, background: "#040e1fcc",
+          border: `1px solid ${accent}40`,
+          padding: "4px 10px", borderRadius: 2,
+          backdropFilter: "blur(8px)",
+        }}>
+          {product.category?.name}
+        </div>
+
+        {/* NEW badge */}
+        <div style={{
+          position: "absolute", top: 16, right: 16,
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: 8, fontWeight: 700,
+          letterSpacing: "0.22em", textTransform: "uppercase",
+          color: "#040e1f", background: accent,
+          padding: "4px 10px", borderRadius: 1,
+        }}>
+          Featured
+        </div>
+      </div>
+
+      {/* Info overlay at bottom */}
+      <div style={{ padding: "20px 22px 22px", position: "relative" }}>
+        {/* Ambient glow */}
+        <div style={{
+          position: "absolute", bottom: 0, left: "30%", transform: "translateX(-50%)",
+          width: 160, height: 80,
+          background: `radial-gradient(ellipse, ${accent}18 0%, transparent 70%)`,
+          pointerEvents: "none",
+          opacity: hovered ? 1 : 0,
+          transition: "opacity 0.4s",
+        }} />
+
+        <p style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: 9, fontWeight: 500,
+          letterSpacing: "0.22em", textTransform: "uppercase",
+          color: accent + "99", margin: "0 0 8px",
+        }}>
+          {getSubtitle(product)}
+        </p>
+
+        <p style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: 26, fontWeight: 600,
+          color: hovered ? "#f0f8ff" : "#c8d8f0",
+          lineHeight: 1.2, margin: "0 0 14px",
+          transition: "color 0.3s",
+        }}>
+          {product.name}
+        </p>
+
+        <div style={{
+          height: 1,
+          background: `linear-gradient(90deg, ${accent}66, transparent)`,
+          marginBottom: 14,
+          transform: hovered ? "scaleX(1)" : "scaleX(0.4)",
+          transformOrigin: "left",
+          transition: "transform 0.5s ease",
+        }} />
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <span style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: 30, fontWeight: 700,
+              color: accent, lineHeight: 1,
+            }}>
+              ${product.price.toLocaleString()}
+            </span>
+            {product.size && (
+              <span style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: 10, color: "#2a4a7f",
+                letterSpacing: "0.1em", marginLeft: 6,
+              }}>
+                / ct
+              </span>
+            )}
+          </div>
+
+          <div style={{
+            display: "flex", alignItems: "center", gap: 7,
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: 9, fontWeight: 700,
+            letterSpacing: "0.2em", textTransform: "uppercase",
+            color: accent,
+            opacity: hovered ? 1 : 0.4,
+            transform: hovered ? "translateX(0)" : "translateX(-6px)",
+            transition: "opacity 0.3s, transform 0.3s",
+          }}>
+            View
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+              <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        </div>
+
+        {product.stock <= 5 && product.stock > 0 && (
+          <p style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: 8, fontWeight: 700,
+            letterSpacing: "0.18em", textTransform: "uppercase",
+            color: "#f87171", marginTop: 8, marginBottom: 0,
+          }}>
+            Only {product.stock} left
+          </p>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+// ── Small Card ────────────────────────────────────────────────────────────────
+
+function SmallCard({ product }: { product: ApiProduct }) {
+  const [hovered, setHovered] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const accent = getAccent(product.category?.name ?? "");
+  const hasImg = product.images?.length > 0 && !imgError;
 
   return (
     <Link
@@ -136,237 +282,166 @@ function ProductCard({ product }: { product: ApiProduct }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: "flex",
-        flexDirection: "column",
-        width: 240,
-        flexShrink: 0,
-        background: "#ffffff",
-        border: `1px solid ${hovered ? color + "44" : "#e8e8ec"}`,
-        borderRadius: 3,
-        overflow: "hidden",
+        display: "flex", gap: 14, alignItems: "center",
         textDecoration: "none",
-        transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
-        transform: hovered ? "translateY(-6px)" : "translateY(0)",
-        boxShadow: hovered
-          ? `0 20px 48px rgba(0,0,0,0.1), 0 4px 12px ${color}22`
-          : "0 1px 4px rgba(0,0,0,0.06)",
-        position: "relative",
+        padding: "14px 16px",
+        borderRadius: 2,
+        background: hovered ? "#0c1628" : "#080f1f",
+        border: `1px solid ${hovered ? accent + "44" : "#1e3a5f22"}`,
+        transition: "all 0.3s cubic-bezier(0.22,1,0.36,1)",
+        transform: hovered ? "translateX(4px)" : "translateX(0)",
+        boxShadow: hovered ? `0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 ${accent}18` : "none",
         cursor: "pointer",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
-      {/* Category badge */}
+      {/* Left accent */}
       <div style={{
-        position: "absolute", top: 14, right: 14,
-        fontFamily: "'Jost', sans-serif",
-        fontSize: 9, fontWeight: 500,
-        letterSpacing: "0.14em", textTransform: "uppercase",
-        color, background: `${color}12`,
-        border: `1px solid ${color}30`,
-        padding: "3px 8px", borderRadius: 2, zIndex: 2,
-      }}>
-        {product.category?.name}
-      </div>
+        position: "absolute", left: 0, top: 0, bottom: 0, width: 2,
+        background: accent,
+        transform: hovered ? "scaleY(1)" : "scaleY(0)",
+        transformOrigin: "center",
+        transition: "transform 0.3s ease",
+        borderRadius: "0 1px 1px 0",
+      }} />
 
-      {/* Image / SVG area */}
+      {/* Thumbnail */}
       <div style={{
-        height: 148,
+        width: 58, height: 58, flexShrink: 0,
+        borderRadius: 2, overflow: "hidden",
+        background: `radial-gradient(ellipse, ${accent}18 0%, #040e1f 100%)`,
+        border: `1px solid ${hovered ? accent + "40" : "#1e3a5f33"}`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        background: hovered ? `${color}06` : "#fafafa",
-        transition: "background 0.3s ease",
-        borderBottom: `1px solid ${hovered ? color + "20" : "#f0f0f4"}`,
-        position: "relative", overflow: "hidden",
+        transition: "border-color 0.3s",
       }}>
-        {/* Radial glow */}
-        <div style={{
-          position: "absolute", width: 100, height: 100, borderRadius: "50%",
-          background: `radial-gradient(circle, ${color}18 0%, transparent 70%)`,
-          opacity: hovered ? 1 : 0, transition: "opacity 0.3s",
-        }} />
-
-        <div style={{
-          transform: hovered ? "scale(1.06)" : "scale(1)",
-          transition: "transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
-          width: "100%", height: "100%",
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          {hasImage ? (
-            <img
-              src={product.images[0]}
-              alt={product.name}
-              onError={() => setImgError(true)}
-              style={{
-                width: "100%", height: "100%",
-                objectFit: "cover",
-                display: "block",
-              }}
-            />
-          ) : (
-            <GemShape shape={product.shape?.[0] ?? "other"} color={color} />
-          )}
-        </div>
+        {hasImg ? (
+          <img
+            src={product.images[0]}
+            alt={product.name}
+            onError={() => setImgError(true)}
+            style={{
+              width: "100%", height: "100%", objectFit: "cover",
+              transform: hovered ? "scale(1.1)" : "scale(1)",
+              transition: "transform 0.4s ease",
+            }}
+          />
+        ) : (
+          <GemShape shape={product.shape?.[0]} color={accent} />
+        )}
       </div>
 
-      {/* Card body */}
-      <div style={{ padding: "18px 18px 20px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-        {/* Subtitle */}
+      {/* Text */}
+      <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{
-          fontFamily: "'Jost', sans-serif",
-          fontSize: 10, fontWeight: 400,
-          letterSpacing: "0.18em", textTransform: "uppercase",
-          color: "#9ca3af", margin: 0,
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: 8, fontWeight: 500,
+          letterSpacing: "0.2em", textTransform: "uppercase",
+          color: accent + "88", margin: "0 0 4px",
         }}>
-          {subtitle}
+          {product.category?.name}
         </p>
-
-        {/* Name */}
         <p style={{
           fontFamily: "'Cormorant Garamond', serif",
-          fontSize: 17, fontWeight: 600,
-          color: hovered ? color : "#111827",
-          lineHeight: 1.3, margin: 0,
-          transition: "color 0.2s",
-          // clamp to 2 lines
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
+          fontSize: 14, fontWeight: 500,
+          color: hovered ? "#d8eaff" : "#8aa8cc",
+          lineHeight: 1.3, margin: "0 0 5px",
+          overflow: "hidden", textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          transition: "color 0.25s",
         }}>
           {product.name}
         </p>
-
-        {/* Animated divider */}
-        <div style={{
-          height: 1,
-          background: `linear-gradient(90deg, ${color}40, transparent)`,
-          margin: "2px 0",
-          transform: hovered ? "scaleX(1)" : "scaleX(0.4)",
-          transformOrigin: "left",
-          transition: "transform 0.35s ease",
-        }} />
-
-        {/* Price */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: 22, fontWeight: 600,
-            color: "#111827", lineHeight: 1,
-          }}>
-            ${product.price.toLocaleString()}
-          </span>
-          {product.size && (
-            <span style={{
-              fontFamily: "'Jost', sans-serif",
-              fontSize: 10, color: "#9ca3af", letterSpacing: "0.1em",
-            }}>
-              / ct
-            </span>
-          )}
-        </div>
-
-        {/* Stock indicator */}
-        {product.stock <= 5 && product.stock > 0 && (
-          <p style={{
-            fontFamily: "'Jost', sans-serif",
-            fontSize: 9, fontWeight: 600,
-            letterSpacing: "0.14em", textTransform: "uppercase",
-            color: "#dc2626", margin: 0,
-          }}>
-            Only {product.stock} left
-          </p>
-        )}
-
-        {/* CTA */}
-        <div style={{
-          marginTop: "auto", paddingTop: 10,
-          display: "flex", alignItems: "center", gap: 6,
-          fontFamily: "'Jost', sans-serif",
-          fontSize: 11, fontWeight: 600,
-          letterSpacing: "0.14em", textTransform: "uppercase",
-          color, opacity: hovered ? 1 : 0.5,
-          transition: "opacity 0.25s ease",
+        <span style={{
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: 16, fontWeight: 700,
+          color: hovered ? accent : accent + "bb",
+          transition: "color 0.25s",
         }}>
-          View Details
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
+          ${product.price.toLocaleString()}
+        </span>
       </div>
+
+      {/* Arrow */}
+      <svg
+        width="12" height="12" viewBox="0 0 16 16" fill="none"
+        style={{
+          flexShrink: 0, color: accent,
+          opacity: hovered ? 0.9 : 0.2,
+          transform: hovered ? "translateX(2px)" : "translateX(0)",
+          transition: "opacity 0.25s, transform 0.25s",
+        }}
+      >
+        <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
     </Link>
   );
 }
 
-// ── Skeleton Card ─────────────────────────────────────────────────────────────
+// ── Skeleton ──────────────────────────────────────────────────────────────────
 
-function SkeletonCard() {
+function SkeletonFeatured() {
   return (
-    <div style={{
-      width: 240, flexShrink: 0,
-      background: "#ffffff",
-      border: "1px solid #e8e8ec",
-      borderRadius: 3, overflow: "hidden",
-    }}>
-      <div style={{ height: 148, background: "#f3f4f6" }} />
-      <div style={{ padding: "18px 18px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ height: 10, width: "60%", background: "#f3f4f6", borderRadius: 2 }} />
-        <div style={{ height: 16, width: "85%", background: "#f3f4f6", borderRadius: 2 }} />
-        <div style={{ height: 16, width: "70%", background: "#f3f4f6", borderRadius: 2 }} />
-        <div style={{ height: 22, width: "45%", background: "#f3f4f6", borderRadius: 2, marginTop: 8 }} />
+    <div style={{ background: "#080f1f", border: "1px solid #1e3a5f22", borderRadius: 3, overflow: "hidden", height: "100%" }}>
+      <div className="sm-skel" style={{ height: "65%" }} />
+      <div style={{ padding: "20px 22px" }}>
+        <div className="sm-skel" style={{ height: 9, width: "40%", borderRadius: 1, marginBottom: 10 }} />
+        <div className="sm-skel" style={{ height: 22, width: "85%", borderRadius: 1, marginBottom: 6 }} />
+        <div className="sm-skel" style={{ height: 22, width: "60%", borderRadius: 1, marginBottom: 16 }} />
+        <div className="sm-skel" style={{ height: 28, width: "35%", borderRadius: 1 }} />
       </div>
     </div>
   );
 }
 
-// ── Main Section ──────────────────────────────────────────────────────────────
+function SkeletonSmall() {
+  return (
+    <div style={{
+      display: "flex", gap: 14, alignItems: "center",
+      padding: "14px 16px",
+      background: "#080f1f", border: "1px solid #1e3a5f22", borderRadius: 2,
+    }}>
+      <div className="sm-skel" style={{ width: 58, height: 58, borderRadius: 2, flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div className="sm-skel" style={{ height: 8, width: "45%", borderRadius: 1, marginBottom: 7 }} />
+        <div className="sm-skel" style={{ height: 13, width: "80%", borderRadius: 1, marginBottom: 6 }} />
+        <div className="sm-skel" style={{ height: 15, width: "30%", borderRadius: 1 }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function SpecialsMarquee() {
-  const [allProducts, setAllProducts]   = useState<ApiProduct[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState<string | null>(null);
+  const [allProducts, setAllProducts] = useState<ApiProduct[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [featuredIndex, setFeaturedIndex]   = useState(0);
 
-  // Fetch once on mount
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-
     fetch("/api/products?limit=60", { signal: controller.signal })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((json) => {
         if (json.success && Array.isArray(json.data)) {
           setAllProducts(json.data.filter((p: ApiProduct) => p.isActive));
-        } else {
-          throw new Error("Unexpected response shape");
-        }
+        } else throw new Error("Unexpected response");
         setLoading(false);
       })
       .catch((err) => {
-        if (err.name !== "AbortError") {
-          setError(err.message ?? "Failed to load products");
-          setLoading(false);
-        }
+        if (err.name !== "AbortError") { setError(err.message); setLoading(false); }
       });
-
     return () => controller.abort();
   }, []);
 
-  // Derive unique categories from fetched products
   const categories = [
-    { key: "all", label: "All", accent: "#1a1a1a" },
+    { key: "all", label: "All" },
     ...Array.from(
       new Map(
-        allProducts
-          .filter((p) => p.category?._id)
-          .map((p) => [
-            p.category._id,
-            {
-              key: p.category._id,
-              label: p.category.name,
-              accent: getCategoryColor(p.category.name),
-            },
-          ])
+        allProducts.filter((p) => p.category?._id)
+          .map((p) => [p.category._id, { key: p.category._id, label: p.category.name }])
       ).values()
     ),
   ];
@@ -375,316 +450,346 @@ export default function SpecialsMarquee() {
     ? allProducts
     : allProducts.filter((p) => p.category?._id === activeCategory);
 
-  const accentColor = categories.find((c) => c.key === activeCategory)?.accent ?? "#1a1a1a";
+  const featured  = filtered[featuredIndex] ?? filtered[0] ?? null;
+  const sideItems = filtered.filter((_, i) => i !== featuredIndex).slice(0, 6);
 
-  // Triple for seamless loop; min duration 28s
-  const marqueeItems = [...filtered, ...filtered, ...filtered];
-  const duration     = `${Math.max(28, filtered.length * 4.5)}s`;
+  const activeAccent = featured ? getAccent(featured.category?.name ?? "") : "#7dd3fc";
+
+  // Auto-rotate featured every 5s
+  useEffect(() => {
+    if (filtered.length <= 1) return;
+    const t = setInterval(() => {
+      setFeaturedIndex((i) => (i + 1) % Math.min(filtered.length, 8));
+    }, 5000);
+    return () => clearInterval(t);
+  }, [filtered.length, activeCategory]);
+
+  // Reset featured index on category change
+  useEffect(() => { setFeaturedIndex(0); }, [activeCategory]);
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Outfit:wght@300;400;500;600;700&display=swap');
 
-        @keyframes marqueeScroll {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-33.333%); }
+        @keyframes sm-shimmer {
+          0%   { background-position: -600px 0; }
+          100% { background-position:  600px 0; }
         }
-        .specials-marquee-track {
-          display: flex;
-          flex-direction: row;
-          flex-wrap: nowrap;
-          align-items: stretch;
-          gap: 20px;
-          width: max-content;
-          padding: 24px 0 32px;
-          animation: marqueeScroll var(--marquee-duration, 38s) linear infinite;
-          will-change: transform;
+        @keyframes sm-fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-        .specials-marquee-track:hover {
-          animation-play-state: paused;
+        @keyframes sm-pulse {
+          0%,100% { opacity: 1; }
+          50%      { opacity: 0.4; }
         }
-        .specials-cat-tab {
-          font-family: 'Jost', sans-serif;
-          font-size: 12px;
-          font-weight: 500;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          border: none;
-          background: transparent;
-          cursor: pointer;
-          padding: 8px 18px;
-          border-radius: 2px;
-          transition: all 0.22s ease;
-          white-space: nowrap;
+        @keyframes sm-featIn {
+          from { opacity: 0; transform: scale(0.97); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+
+        .sm-skel {
+          background: linear-gradient(90deg, #080f1f 25%, #0f1e3a 50%, #080f1f 75%);
+          background-size: 600px 100%;
+          animation: sm-shimmer 1.8s infinite linear;
+        }
+
+        .sm-root {
+          background: #040e1f;
+          border-top: 1px solid #1e3a5f44;
+          border-bottom: 1px solid #1e3a5f44;
+          position: relative;
+          overflow: hidden;
+        }
+
+        /* grid bg */
+        .sm-root::before {
+          content: '';
+          position: absolute; inset: 0;
+          background-image:
+            linear-gradient(rgba(30,58,95,0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(30,58,95,0.05) 1px, transparent 1px);
+          background-size: 52px 52px;
+          pointer-events: none;
+          z-index: 0;
+        }
+
+        .sm-inner {
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 52px 40px 56px;
+          position: relative;
+          z-index: 2;
+          animation: sm-fadeIn 0.55s cubic-bezier(0.22,1,0.36,1) both;
+        }
+
+        .sm-cat-tab {
+          font-family: 'Outfit', sans-serif;
+          font-size: 10px; font-weight: 500;
+          letter-spacing: 0.14em; text-transform: uppercase;
+          border: 1px solid transparent;
+          background: transparent; cursor: pointer;
+          padding: 6px 14px; border-radius: 1px;
+          transition: all 0.2s ease; white-space: nowrap;
           position: relative;
         }
-        @keyframes shimmer {
-          0%   { background-position: -400px 0; }
-          100% { background-position: 400px 0; }
+
+        .sm-featured-card {
+          animation: sm-featIn 0.45s cubic-bezier(0.22,1,0.36,1) both;
         }
-        .skeleton-shimmer {
-          background: linear-gradient(90deg, #f3f4f6 25%, #e9eaeb 50%, #f3f4f6 75%);
-          background-size: 800px 100%;
-          animation: shimmer 1.4s infinite linear;
+
+        /* Layout: left big + right stack */
+        .sm-layout {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          align-items: stretch;
+        }
+
+        /* Right side: 2 cols of small cards */
+        .sm-right {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          grid-template-rows: repeat(3, 1fr);
+          gap: 10px;
+        }
+
+        @media (max-width: 900px) {
+          .sm-layout {
+            grid-template-columns: 1fr;
+          }
+          .sm-right {
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto;
+          }
+          .sm-inner { padding: 36px 20px 40px; }
+        }
+
+        @media (max-width: 540px) {
+          .sm-right { grid-template-columns: 1fr; }
         }
       `}</style>
 
-      <section style={{
-        background: "#ffffff",
-        borderTop: "1px solid #e8e8ec",
-        borderBottom: "1px solid #e8e8ec",
-        overflow: "hidden",
-        position: "relative",
-      }}>
-        {/* Top accent line */}
+      <section className="sm-root">
+        {/* Ambient glow */}
         <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, height: 3,
-          background: `linear-gradient(90deg, transparent, ${accentColor}60, ${accentColor}, ${accentColor}60, transparent)`,
-          transition: "background 0.4s ease",
+          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
+          width: "60%", height: 1,
+          background: `linear-gradient(90deg, transparent, ${activeAccent}66, transparent)`,
+          transition: "background 0.5s ease", zIndex: 1,
+        }} />
+        <div style={{
+          position: "absolute", top: -60, left: "25%",
+          width: 400, height: 300, borderRadius: "50%",
+          background: `radial-gradient(ellipse, ${activeAccent}08 0%, transparent 70%)`,
+          transition: "background 0.6s ease",
+          pointerEvents: "none", zIndex: 1, filter: "blur(40px)",
         }} />
 
-        {/* ── Header ── */}
-        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "52px 32px 0" }}>
+        <div className="sm-inner">
 
-          {/* Section label */}
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-            <div style={{
-              background: accentColor,
-              color: "#fff",
-              fontFamily: "'Jost', sans-serif",
-              fontSize: 10, fontWeight: 700,
-              letterSpacing: "0.18em",
-              padding: "5px 12px", borderRadius: 2,
-              transition: "background 0.3s",
-            }}>
-              LIVE
+          {/* ── Section header ── */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 20, marginBottom: 32 }}>
+            <div>
+              {/* Label */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <span style={{
+                  width: 5, height: 5, borderRadius: "50%",
+                  background: activeAccent,
+                  animation: "sm-pulse 2s ease infinite",
+                  boxShadow: `0 0 8px ${activeAccent}`,
+                  flexShrink: 0,
+                  transition: "background 0.4s, box-shadow 0.4s",
+                }} />
+                <span style={{
+                  fontFamily: "'Outfit', sans-serif",
+                  fontSize: 9, fontWeight: 700,
+                  letterSpacing: "0.28em", textTransform: "uppercase",
+                  color: activeAccent,
+                  transition: "color 0.4s",
+                }}>
+                  Curated Selection
+                </span>
+              </div>
+
+              <h2 style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: "clamp(34px, 4.5vw, 60px)",
+                fontWeight: 400, color: "#dce8f8",
+                lineHeight: 1, letterSpacing: "-0.02em", margin: 0,
+              }}>
+                Our{" "}
+                <em style={{
+                  fontStyle: "italic",
+                  color: activeAccent,
+                  transition: "color 0.4s",
+                }}>
+                  Collection
+                </em>
+              </h2>
             </div>
-            <div style={{
-              fontFamily: "'Jost', sans-serif",
-              fontSize: 10, fontWeight: 500,
-              letterSpacing: "0.25em", textTransform: "uppercase",
-              color: "#ff0000",
-            }}>
-              {loading ? "Loading products…" : `50% off!`}
+
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 16 }}>
+              <Link href="/products" style={{
+                fontFamily: "'Outfit', sans-serif",
+                fontSize: 10, fontWeight: 600,
+                letterSpacing: "0.2em", textTransform: "uppercase",
+                color: activeAccent, textDecoration: "none",
+                display: "flex", alignItems: "center", gap: 7,
+                paddingBottom: 2,
+                borderBottom: `1px solid ${activeAccent}44`,
+                transition: "color 0.4s, border-color 0.4s",
+              }}>
+                View All
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                  <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </Link>
+
+              {/* Stats inline */}
+              {!loading && (
+                <div style={{ display: "flex", gap: 24 }}>
+                  {[
+                    { v: String(allProducts.length), l: "Products" },
+                    { v: String(categories.length - 1), l: "Categories" },
+                  ].map((s) => (
+                    <div key={s.l} style={{ textAlign: "right" }}>
+                      <p style={{
+                        fontFamily: "'Cormorant Garamond', serif",
+                        fontSize: 20, fontWeight: 700,
+                        color: activeAccent, margin: "0 0 2px",
+                        transition: "color 0.4s",
+                      }}>{s.v}</p>
+                      <p style={{
+                        fontFamily: "'Outfit', sans-serif",
+                        fontSize: 8, color: "#1e3a5f",
+                        letterSpacing: "0.2em", textTransform: "uppercase",
+                        margin: 0,
+                      }}>{s.l}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-
-          {/* Heading row */}
-          <div style={{
-            display: "flex", alignItems: "flex-end",
-            justifyContent: "space-between",
-            flexWrap: "wrap", gap: 20, marginBottom: 32,
-          }}>
-            <h2 style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: "clamp(32px, 5vw, 58px)",
-              fontWeight: 400, color: "#111827",
-              lineHeight: 1.05, letterSpacing: "-0.02em", margin: 0,
-            }}>
-              Our <em style={{ fontStyle: "italic", color: accentColor, transition: "color 0.3s" }}>
-                Collection
-              </em>
-            </h2>
-
-            <Link href="/products" style={{
-              fontFamily: "'Jost', sans-serif",
-              fontSize: 11, fontWeight: 600,
-              letterSpacing: "0.16em", textTransform: "uppercase",
-              color: accentColor, textDecoration: "none",
-              display: "flex", alignItems: "center", gap: 8,
-              paddingBottom: 2,
-              borderBottom: `1px solid ${accentColor}40`,
-              whiteSpace: "nowrap",
-              transition: "color 0.3s, border-color 0.3s",
-            }}>
-              View All Products
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </Link>
           </div>
 
           {/* ── Category tabs ── */}
           <div style={{
-            display: "flex", alignItems: "center",
-            gap: 4, flexWrap: "wrap",
-            borderBottom: "1px solid #e8e8ec",
+            display: "flex", alignItems: "center", gap: 2,
+            flexWrap: "wrap", marginBottom: 24,
+            borderBottom: "1px solid #1e3a5f44",
+            paddingBottom: 0,
           }}>
             {loading
-              ? /* skeleton tabs */
-                [90, 70, 110, 80, 95].map((w, i) => (
-                  <div key={i} className="skeleton-shimmer" style={{
-                    height: 32, width: w, borderRadius: 2, margin: "4px 4px 8px",
-                  }} />
+              ? [80, 65, 100, 72, 88].map((w, i) => (
+                  <div key={i} className="sm-skel" style={{ height: 28, width: w, borderRadius: 1, margin: "4px 4px 10px" }} />
                 ))
               : categories.map((cat) => {
                   const isActive = activeCategory === cat.key;
+                  const acc = cat.key === "all" ? "#7dd3fc" : getAccent(cat.label);
                   return (
                     <button
                       key={cat.key}
-                      className="specials-cat-tab"
+                      className="sm-cat-tab"
                       onClick={() => setActiveCategory(cat.key)}
                       style={{
-                        color: isActive ? cat.accent : "#6b7280",
-                        background: isActive ? `${cat.accent}08` : "transparent",
+                        color: isActive ? acc : "#1e3a5f",
+                        background: isActive ? `${acc}12` : "transparent",
+                        borderColor: isActive ? `${acc}35` : "transparent",
                       }}
                     >
-                      <span style={{ position: "relative" }}>
-                        {cat.label}
-                        {isActive && (
-                          <span style={{
-                            position: "absolute",
-                            bottom: -9, left: 0, right: 0,
-                            height: 2, background: cat.accent,
-                            borderRadius: "1px 1px 0 0",
-                          }} />
-                        )}
-                      </span>
+                      {cat.label}
+                      {isActive && (
+                        <span style={{
+                          position: "absolute", bottom: -1, left: 0, right: 0,
+                          height: 1, background: acc,
+                        }} />
+                      )}
                     </button>
                   );
                 })
             }
-
-            {/* Item count */}
-            {!loading && (
-              <div style={{
-                marginLeft: "auto",
-                fontFamily: "'Jost', sans-serif",
-                fontSize: 11, color: "#d1d5db",
-                letterSpacing: "0.12em",
-                paddingBottom: 8, paddingRight: 4,
-              }}>
-                {filtered.length} items
-              </div>
-            )}
           </div>
-        </div>
 
-        {/* ── Marquee strip ── */}
-        <div style={{ position: "relative", overflow: "hidden" }}>
-          {/* Fade edges */}
-          <div style={{
-            position: "absolute", left: 0, top: 0, bottom: 0, width: 80,
-            background: "linear-gradient(to right, #ffffff, transparent)",
-            zIndex: 10, pointerEvents: "none",
-          }} />
-          <div style={{
-            position: "absolute", right: 0, top: 0, bottom: 0, width: 80,
-            background: "linear-gradient(to left, #ffffff, transparent)",
-            zIndex: 10, pointerEvents: "none",
-          }} />
+          {/* ── Main layout ── */}
+          {loading ? (
+            <div className="sm-layout">
+              <SkeletonFeatured />
+              <div className="sm-right">
+                {Array.from({ length: 6 }).map((_, i) => <SkeletonSmall key={i} />)}
+              </div>
+            </div>
+          ) : error ? (
+            <div style={{
+              padding: "48px 0", textAlign: "center",
+              fontFamily: "'Outfit', sans-serif", fontSize: 13, color: "#1e3a5f",
+            }}>
+              Could not load products.{" "}
+              <button onClick={() => window.location.reload()} style={{
+                background: "none", border: "none", color: activeAccent,
+                cursor: "pointer", fontFamily: "'Outfit', sans-serif",
+                fontSize: 13, textDecoration: "underline",
+              }}>Retry</button>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{
+              padding: "48px 0", textAlign: "center",
+              fontFamily: "'Outfit', sans-serif", fontSize: 13, color: "#1e3a5f",
+            }}>
+              No products in this category.
+            </div>
+          ) : (
+            <div className="sm-layout" key={activeCategory}>
 
-          <div style={{ padding: "0 40px" }}>
-            {loading ? (
-              /* Skeleton row */
-              <div style={{
-                display: "flex", gap: 20,
-                padding: "24px 0 32px", overflowX: "hidden",
-              }}>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} style={{ flexShrink: 0 }}>
-                    <div style={{ width: 240 }}>
-                      <div className="skeleton-shimmer" style={{ height: 148, borderRadius: "3px 3px 0 0" }} />
-                      <div style={{
-                        padding: "18px 18px 20px",
-                        border: "1px solid #e8e8ec",
-                        borderTop: "none",
-                        borderRadius: "0 0 3px 3px",
-                        display: "flex", flexDirection: "column", gap: 10,
-                      }}>
-                        <div className="skeleton-shimmer" style={{ height: 10, width: "60%", borderRadius: 2 }} />
-                        <div className="skeleton-shimmer" style={{ height: 16, width: "85%", borderRadius: 2 }} />
-                        <div className="skeleton-shimmer" style={{ height: 16, width: "70%", borderRadius: 2 }} />
-                        <div className="skeleton-shimmer" style={{ height: 22, width: "45%", borderRadius: 2, marginTop: 8 }} />
-                      </div>
-                    </div>
+              {/* Featured (left) */}
+              {featured && <FeaturedCard product={featured} />}
+
+              {/* Small cards (right, 2×3 grid) */}
+              <div className="sm-right">
+                {sideItems.map((p, i) => (
+                  <div
+                    key={p._id}
+                    style={{ animation: `sm-fadeIn 0.4s cubic-bezier(0.22,1,0.36,1) ${i * 0.05}s both` }}
+                    onClick={() => setFeaturedIndex(filtered.indexOf(p))}
+                  >
+                    <SmallCard product={p} />
                   </div>
                 ))}
               </div>
-            ) : error ? (
-              <div style={{
-                padding: "40px 0", textAlign: "center",
-                fontFamily: "'Jost', sans-serif",
-                fontSize: 13, color: "#9ca3af",
-              }}>
-                Could not load products. <button
-                  onClick={() => window.location.reload()}
-                  style={{
-                    background: "none", border: "none",
-                    color: accentColor, cursor: "pointer",
-                    fontFamily: "'Jost', sans-serif",
-                    fontSize: 13, textDecoration: "underline",
-                  }}
-                >
-                  Retry
-                </button>
-              </div>
-            ) : filtered.length === 0 ? (
-              <div style={{
-                padding: "40px 0", textAlign: "center",
-                fontFamily: "'Jost', sans-serif",
-                fontSize: 13, color: "#9ca3af",
-              }}>
-                No products in this category.
-              </div>
-            ) : (
-              <div
-                className="specials-marquee-track"
-                style={{ "--marquee-duration": duration } as React.CSSProperties}
-                key={activeCategory}
-              >
-                {marqueeItems.map((product, idx) => (
-                  <ProductCard key={`${product._id}-${idx}`} product={product} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
 
-        {/* ── Bottom stats bar ── */}
-        {!loading && !error && (
-          <div style={{
-            borderTop: "1px solid #f3f4f6",
-            background: "#fafafa",
-            padding: "18px 40px",
-          }}>
+          {/* Featured indicator dots */}
+          {!loading && !error && filtered.length > 1 && (
             <div style={{
-              maxWidth: 1280, margin: "0 auto",
-              display: "flex", alignItems: "center",
-              justifyContent: "center",
-              gap: "clamp(24px, 6vw, 80px)",
-              flexWrap: "wrap",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              gap: 6, marginTop: 22,
             }}>
-              {[
-                { value: String(allProducts.length), label: "Products available" },
-                { value: String(categories.length - 1), label: "Categories" },
-                { value: "GIA",  label: "Certified stones" },
-                { value: "Free", label: "Shipping included" },
-              ].map((stat) => (
-                <div key={stat.label} style={{ textAlign: "center" }}>
-                  <p style={{
-                    fontFamily: "'Cormorant Garamond', serif",
-                    fontSize: 24, fontWeight: 600,
-                    color: accentColor, lineHeight: 1,
-                    margin: "0 0 4px",
-                    transition: "color 0.3s",
-                  }}>
-                    {stat.value}
-                  </p>
-                  <p style={{
-                    fontFamily: "'Jost', sans-serif",
-                    fontSize: 10, fontWeight: 400,
-                    letterSpacing: "0.16em", textTransform: "uppercase",
-                    color: "#9ca3af", margin: 0,
-                  }}>
-                    {stat.label}
-                  </p>
-                </div>
+              {Array.from({ length: Math.min(filtered.length, 8) }).map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setFeaturedIndex(i)}
+                  style={{
+                    width: i === featuredIndex ? 20 : 5,
+                    height: 5, borderRadius: 3,
+                    background: i === featuredIndex ? activeAccent : "#1e3a5f",
+                    border: "none", cursor: "pointer", padding: 0,
+                    transition: "all 0.3s ease",
+                  }}
+                />
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Bottom glow line */}
+        <div style={{
+          position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)",
+          width: "55%", height: 1,
+          background: `linear-gradient(90deg, transparent, ${activeAccent}55, transparent)`,
+          transition: "background 0.5s ease",
+        }} />
       </section>
     </>
   );

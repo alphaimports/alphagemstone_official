@@ -79,13 +79,6 @@ export const POST = withAdmin(async (req: NextRequest) => {
       }).lean() as unknown as Array<{ _id: { toString(): string }; slug: string; name: string }>,
     ]);
 
-    // ── Debug logging (remove in production) ─────────────────────────────────
-    console.log('[bulk-upload] rawCategoryValues:', rawCategoryValues);
-    console.log('[bulk-upload] categorySearchVariants:', categorySearchVariants);
-    console.log('[bulk-upload] categories found in DB:', categories.map((c) => `slug="${c.slug}" name="${c.name}"`));
-    console.log('[bulk-upload] rawSubcategoryValues:', rawSubcategoryValues);
-    console.log('[bulk-upload] subcategories found in DB:', subcategories.map((s) => `slug="${s.slug}" name="${s.name}"`));
-
     // ── Build lookup maps ─────────────────────────────────────────────────────
     // We index each DB record by BOTH its slug and its name (lowercased),
     // so any variant of the user's input has a chance to match.

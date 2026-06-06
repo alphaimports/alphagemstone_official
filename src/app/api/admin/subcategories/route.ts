@@ -3,7 +3,7 @@
 import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db';
 import { createSubcategory, listSubcategories } from '@/services/category.service';
-import { withAdmin } from '@/middleware/auth.middleware';
+import { withAdmin, AuthenticatedRequest } from '@/middleware/auth.middleware';
 import { successResponse, errorResponse } from '@/lib/api-response';
 import { uploadBuffer } from '@/lib/cloudinary';
 
@@ -51,9 +51,6 @@ export const POST = withAdmin(async (req: NextRequest) => {
     if (!name || !categoryId)
       return errorResponse('name and categoryId are required', 400);
 
-    // createSubcategory in your service handles slug generation & DB insert.
-    // Pass the extra image fields — update the service signature to accept them
-    // (see category.service.ts changes below).
     const sub = await createSubcategory(name, categoryId, description, imageUrl, imagePublicId);
     return successResponse(sub, 201);
   } catch (err) {
@@ -62,8 +59,7 @@ export const POST = withAdmin(async (req: NextRequest) => {
 });
 
 // ── GET /api/admin/subcategories ─────────────────────────────────────────────
-// Unchanged from your original.
-export async function GET(req: NextRequest) {
+export const GET = withAdmin(async (req: NextRequest) => {
   try {
     await connectDB();
     const categoryId = req.nextUrl.searchParams.get('category') || undefined;
@@ -72,4 +68,4 @@ export async function GET(req: NextRequest) {
   } catch {
     return errorResponse('Failed to fetch subcategories', 500);
   }
-}
+});

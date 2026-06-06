@@ -42,63 +42,102 @@ interface IPickProduct {
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 function Skeleton({
-  w, h, className = "", style,
+  w,
+  h,
+  className = "",
+  style,
 }: {
-  w?: string | number; h?: string | number; className?: string; style?: React.CSSProperties;
+  w?: string | number;
+  h?: string | number;
+  className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <div
       className={`skeleton-pulse ${className}`}
-      style={{ width: w ?? "100%", height: h ?? 16, borderRadius: 4, background: "#f3f1ee", display: "block", ...style }}
+      style={{
+        width: w ?? "100%",
+        height: h ?? 16,
+        borderRadius: 4,
+        background: "#f3f1ee",
+        display: "block",
+        ...style,
+      }}
     />
   );
 }
 
 // ─── Subcategory circle card (landing) ────────────────────────────────────────
-function SubcategoryCard({ sub, onSelect }: { sub: ISubcategory; onSelect: (sub: ISubcategory) => void }) {
+function SubcategoryCard({
+  sub,
+  onSelect,
+}: {
+  sub: ISubcategory;
+  onSelect: (sub: ISubcategory) => void;
+}) {
   const [hovered, setHovered] = useState(false);
-  const fallback = "https://images.pexels.com/photos/1458867/pexels-photo-1458867.jpeg?auto=compress&cs=tinysrgb&w=300";
+  const fallback =
+    "https://images.pexels.com/photos/1458867/pexels-photo-1458867.jpeg?auto=compress&cs=tinysrgb&w=300";
 
   return (
     <div
       onClick={() => onSelect(sub)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", gap: 14 }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        cursor: "pointer",
+        gap: 14,
+      }}
     >
-      <div style={{
-        width: "100%", aspectRatio: "1", maxWidth: 180, margin: "0 auto",
-        overflow: "hidden", borderRadius: "50%", position: "relative",
-        boxShadow: hovered
-          ? "0 16px 48px -8px rgba(184,146,42,0.35), 0 0 0 3px rgba(184,146,42,0.3)"
-          : "0 4px 20px -6px rgba(26,26,46,0.18), 0 0 0 1px rgba(26,26,46,0.06)",
-        transition: "box-shadow 0.4s cubic-bezier(0.22,1,0.36,1)",
-      }}>
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          width: "100%",
+          aspectRatio: "1",
+          maxWidth: 180,
+          margin: "0 auto",
+          overflow: "hidden",
+          position: "relative",
+          borderRadius: "50%",
+          border: hovered
+            ? "1.5px solid rgba(255,255,255,0.35)"
+            : "1.5px solid rgba(255,255,255,0.1)",
+          transform: hovered ? "translateY(-4px)" : "translateY(0)",
+          transition:
+            "transform 0.35s cubic-bezier(0.22,1,0.36,1), border-color 0.3s ease",
+          outline: hovered
+            ? "1px solid rgba(255,255,255,0.12)"
+            : "1px solid transparent",
+          outlineOffset: "5px",
+        }}
+      >
         <img
           src={sub.imageUrl ?? fallback}
           alt={sub.name}
           style={{
-            width: "100%", height: "100%", objectFit: "cover",
-            transform: hovered ? "scale(1.12)" : "scale(1)",
-            transition: "transform 0.55s cubic-bezier(0.22,1,0.36,1)",
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
           }}
         />
-        <div style={{
-          position: "absolute", inset: 0, borderRadius: "50%",
-          background: hovered
-            ? "radial-gradient(circle at 40% 40%, rgba(184,146,42,0.18) 0%, transparent 70%)"
-            : "radial-gradient(circle at 40% 40%, rgba(255,255,255,0.06) 0%, transparent 60%)",
-          transition: "background 0.4s",
-        }} />
       </div>
-      <p style={{
-        fontFamily: '"Playfair Display", Georgia, serif',
-        fontSize: 13, fontWeight: 500,
-        color: hovered ? "#b8922a" : "#1a1a2e",
-        textAlign: "center", lineHeight: 1.4,
-        transition: "color 0.25s",
-        letterSpacing: "0.02em",
-      }}>
+      <p
+        style={{
+          fontFamily: '"Playfair Display", Georgia, serif',
+          fontSize: 13,
+          fontWeight: 500,
+          color: hovered ? "#b8922a" : "#1a1a2e",
+          textAlign: "center",
+          lineHeight: 1.4,
+          transition: "color 0.25s",
+          letterSpacing: "0.02em",
+        }}
+      >
         {sub.name}
       </p>
     </div>
@@ -108,82 +147,138 @@ function SubcategoryCard({ sub, onSelect }: { sub: ISubcategory; onSelect: (sub:
 // ─── Product Card ─────────────────────────────────────────────────────────────
 function ProductCard({ product }: { product: IProduct }) {
   const [hovered, setHovered] = useState(false);
-  const img = product.images?.[0] ?? "https://images.pexels.com/photos/1458867/pexels-photo-1458867.jpeg?auto=compress&cs=tinysrgb&w=400";
+  const img =
+    product.images?.[0] ??
+    "https://images.pexels.com/photos/1458867/pexels-photo-1458867.jpeg?auto=compress&cs=tinysrgb&w=400";
 
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: "flex", flexDirection: "column", cursor: "pointer",
+        display: "flex",
+        flexDirection: "column",
+        cursor: "pointer",
         background: "#fff",
         borderRadius: 2,
-        transition: "transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s cubic-bezier(0.22,1,0.36,1)",
+        transition:
+          "transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s cubic-bezier(0.22,1,0.36,1)",
         transform: hovered ? "translateY(-4px)" : "translateY(0)",
-        boxShadow: hovered ? "0 20px 48px -12px rgba(26,26,46,0.18)" : "0 2px 12px -4px rgba(26,26,46,0.08)",
+        boxShadow: hovered
+          ? "0 20px 48px -12px rgba(26,26,46,0.18)"
+          : "0 2px 12px -4px rgba(26,26,46,0.08)",
       }}
     >
-      <div style={{
-        width: "100%", aspectRatio: "1", position: "relative", overflow: "hidden",
-        borderRadius: "2px 2px 0 0",
-        background: "#f8f6f2",
-      }}>
-        <img src={img} alt={product.name} style={{
-          width: "100%", height: "100%", objectFit: "cover",
-          transform: hovered ? "scale(1.07)" : "scale(1)",
-          transition: "transform 0.6s cubic-bezier(0.22,1,0.36,1)",
-        }} />
-        <div style={{
-          position: "absolute", inset: 0,
-          background: "linear-gradient(to bottom, transparent 50%, rgba(26,26,46,0.6) 100%)",
-          opacity: hovered ? 1 : 0,
-          transition: "opacity 0.3s",
-          display: "flex", alignItems: "flex-end", justifyContent: "center",
-          paddingBottom: 16,
-        }}>
-          <span style={{
-            fontSize: 8, letterSpacing: "0.3em", textTransform: "uppercase",
-            color: "#fff", fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 500,
-            border: "1px solid rgba(255,255,255,0.6)", padding: "5px 14px",
-            backdropFilter: "blur(4px)",
-          }}>
+      <div
+        style={{
+          width: "100%",
+          aspectRatio: "1",
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: "2px 2px 0 0",
+          background: "#f8f6f2",
+        }}
+      >
+        <img
+          src={img}
+          alt={product.name}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: hovered ? "scale(1.07)" : "scale(1)",
+            transition: "transform 0.6s cubic-bezier(0.22,1,0.36,1)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(to bottom, transparent 50%, rgba(26,26,46,0.6) 100%)",
+            opacity: hovered ? 1 : 0,
+            transition: "opacity 0.3s",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+            paddingBottom: 16,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 8,
+              letterSpacing: "0.3em",
+              textTransform: "uppercase",
+              color: "#fff",
+              fontFamily: '"Playfair Display", Georgia, serif',
+              fontWeight: 500,
+              border: "1px solid rgba(255,255,255,0.6)",
+              padding: "5px 14px",
+              backdropFilter: "blur(4px)",
+            }}
+          >
             View Details
           </span>
         </div>
         {product.tag && (
-          <div style={{
-            position: "absolute", top: 10, left: 10,
-            fontSize: 7, letterSpacing: "0.22em", textTransform: "uppercase",
-            fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 600,
-            background: "linear-gradient(135deg, #1a1a2e, #0f3460)",
-            color: "#e8c96a", padding: "3px 9px",
-          }}>
+          <div
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              fontSize: 7,
+              letterSpacing: "0.22em",
+              textTransform: "uppercase",
+              fontFamily: '"Playfair Display", Georgia, serif',
+              fontWeight: 600,
+              background: "linear-gradient(135deg, #1a1a2e, #0f3460)",
+              color: "#e8c96a",
+              padding: "3px 9px",
+            }}
+          >
             {product.tag}
           </div>
         )}
       </div>
 
-      <div style={{ padding: "14px 12px 16px", borderTop: "1px solid #f0ece4" }}>
-        <p style={{
-          fontFamily: '"Playfair Display", Georgia, serif',
-          fontSize: 13, color: "#1a1a2e", lineHeight: 1.45, marginBottom: 4,
-          fontWeight: 400,
-        }}>
+      <div
+        style={{ padding: "14px 12px 16px", borderTop: "1px solid #f0ece4" }}
+      >
+        <p
+          style={{
+            fontFamily: '"Playfair Display", Georgia, serif',
+            fontSize: 13,
+            color: "#1a1a2e",
+            lineHeight: 1.45,
+            marginBottom: 4,
+            fontWeight: 400,
+          }}
+        >
           {product.name}
         </p>
         {product.origin && (
-          <p style={{
-            fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase",
-            color: "#b8922a", fontFamily: '"Barlow Condensed", sans-serif',
-            marginBottom: 6, fontWeight: 500,
-          }}>
+          <p
+            style={{
+              fontSize: 9,
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              color: "#b8922a",
+              fontFamily: '"Playfair Display", Georgia, serif',
+              marginBottom: 6,
+              fontWeight: 500,
+            }}
+          >
             {product.origin}
           </p>
         )}
-        <p style={{
-          fontFamily: '"Playfair Display", Georgia, serif',
-          fontSize: 14, color: "#0f3460", fontWeight: 600,
-        }}>
+        <p
+          style={{
+            fontFamily: '"Playfair Display", Georgia, serif',
+            fontSize: 14,
+            color: "#0f3460",
+            fontWeight: 600,
+          }}
+        >
           ₹{product.price.toLocaleString("en-IN")}
         </p>
       </div>
@@ -193,9 +288,21 @@ function ProductCard({ product }: { product: IProduct }) {
 
 function ProductCardSkeleton() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", borderRadius: 2, overflow: "hidden" }}>
-      <Skeleton h={0} style={{ width: "100%", aspectRatio: "1", borderRadius: 0 }} />
-      <div style={{ padding: "14px 12px 16px", borderTop: "1px solid #f0ece4" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        borderRadius: 2,
+        overflow: "hidden",
+      }}
+    >
+      <Skeleton
+        h={0}
+        style={{ width: "100%", aspectRatio: "1", borderRadius: 0 }}
+      />
+      <div
+        style={{ padding: "14px 12px 16px", borderTop: "1px solid #f0ece4" }}
+      >
         <Skeleton w="75%" h={13} style={{ marginBottom: 6 }} />
         <Skeleton w="45%" h={11} style={{ marginBottom: 6 }} />
         <Skeleton w="35%" h={14} />
@@ -206,7 +313,11 @@ function ProductCardSkeleton() {
 
 // ─── Sidebar group ────────────────────────────────────────────────────────────
 function SidebarGroup({
-  category, subcategories, activeSubSlug, onSelectSub, onSelectCat,
+  category,
+  subcategories,
+  activeSubSlug,
+  onSelectSub,
+  onSelectCat,
 }: {
   category: ICategory;
   subcategories: ISubcategory[];
@@ -225,36 +336,65 @@ function SidebarGroup({
         <button
           onClick={() => onSelectCat(category)}
           style={{
-            flex: 1, textAlign: "left", padding: "10px 16px",
-            background: "transparent", border: "none", cursor: "pointer",
+            flex: 1,
+            textAlign: "left",
+            padding: "10px 16px",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
           }}
         >
-          <span style={{
-            fontFamily: '"Playfair Display", Georgia, serif',
-            fontSize: 13, fontWeight: 700,
-            color: "#1a1a2e", letterSpacing: "0.01em",
-          }}>
+          <span
+            style={{
+              fontFamily: '"Playfair Display", Georgia, serif',
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#1a1a2e",
+              letterSpacing: "0.01em",
+            }}
+          >
             {category.name}
           </span>
         </button>
         {subcategories.length > 0 && (
           <button
             onClick={() => setOpen((o) => !o)}
-            style={{ padding: "10px 12px", background: "transparent", border: "none", cursor: "pointer", color: "#9f9fc0" }}
+            style={{
+              padding: "10px 12px",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: "#9f9fc0",
+            }}
           >
-            <svg width="8" height="5" viewBox="0 0 10 6" fill="none"
-              style={{ transform: open ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1)" }}>
-              <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <svg
+              width="8"
+              height="5"
+              viewBox="0 0 10 6"
+              fill="none"
+              style={{
+                transform: open ? "rotate(0deg)" : "rotate(-90deg)",
+                transition: "transform 0.25s cubic-bezier(0.22,1,0.36,1)",
+              }}
+            >
+              <path
+                d="M1 1L5 5L9 1"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
         )}
       </div>
 
-      <div style={{
-        overflow: "hidden",
-        maxHeight: open ? `${(visible.length + 1) * 32 + 8}px` : "0px",
-        transition: "max-height 0.35s cubic-bezier(0.22,1,0.36,1)",
-      }}>
+      <div
+        style={{
+          overflow: "hidden",
+          maxHeight: open ? `${(visible.length + 1) * 32 + 8}px` : "0px",
+          transition: "max-height 0.35s cubic-bezier(0.22,1,0.36,1)",
+        }}
+      >
         <div style={{ paddingBottom: 6 }}>
           {visible.map((sub) => {
             const isActive = activeSubSlug === sub.slug;
@@ -263,22 +403,42 @@ function SidebarGroup({
                 key={sub._id}
                 onClick={() => onSelectSub(sub)}
                 style={{
-                  width: "100%", textAlign: "left",
+                  width: "100%",
+                  textAlign: "left",
                   padding: "5px 16px 5px 26px",
-                  background: isActive ? "linear-gradient(90deg, rgba(184,146,42,0.08), transparent)" : "transparent",
-                  border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8,
-                  borderLeft: isActive ? "2px solid #b8922a" : "2px solid transparent",
+                  background: isActive
+                    ? "linear-gradient(90deg, rgba(184,146,42,0.08), transparent)"
+                    : "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  borderLeft: isActive
+                    ? "2px solid #b8922a"
+                    : "2px solid transparent",
                   transition: "background 0.2s, border-color 0.2s",
                 }}
-                onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "rgba(26,26,46,0.03)"; }}
-                onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                onMouseEnter={(e) => {
+                  if (!isActive)
+                    (e.currentTarget as HTMLElement).style.background =
+                      "rgba(26,26,46,0.03)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive)
+                    (e.currentTarget as HTMLElement).style.background =
+                      "transparent";
+                }}
               >
-                <span style={{
-                  fontSize: 11.5, fontFamily: '"Barlow Condensed", sans-serif',
-                  color: isActive ? "#b8922a" : "#4a5568",
-                  fontWeight: isActive ? 600 : 400,
-                  letterSpacing: "0.03em",
-                }}>
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: '"Playfair Display", Georgia, serif',
+                    color: isActive ? "#b8922a" : "#4a5568",
+                    fontWeight: isActive ? 600 : 400,
+                    letterSpacing: "0.03em",
+                  }}
+                >
                   {sub.name}
                 </span>
               </button>
@@ -288,12 +448,19 @@ function SidebarGroup({
             <button
               onClick={() => setShowAll((s) => !s)}
               style={{
-                padding: "4px 16px 4px 26px", background: "transparent", border: "none",
-                cursor: "pointer", fontSize: 10, color: "#b8922a",
-                fontFamily: '"Barlow Condensed", sans-serif', letterSpacing: "0.08em",
+                padding: "4px 16px 4px 26px",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontSize: 10,
+                color: "#b8922a",
+                fontFamily: '"Playfair Display", Georgia, serif',
+                letterSpacing: "0.08em",
               }}
             >
-              {showAll ? "Show less ↑" : `+${subcategories.length - LIMIT} more`}
+              {showAll
+                ? "Show less ↑"
+                : `+${subcategories.length - LIMIT} more`}
             </button>
           )}
         </div>
@@ -306,9 +473,22 @@ function SidebarSkeleton() {
   return (
     <div>
       {[1, 2, 3, 4].map((i) => (
-        <div key={i} style={{ borderBottom: "1px solid rgba(26,26,46,0.08)", padding: "10px 16px" }}>
+        <div
+          key={i}
+          style={{
+            borderBottom: "1px solid rgba(26,26,46,0.08)",
+            padding: "10px 16px",
+          }}
+        >
           <Skeleton w="65%" h={13} style={{ marginBottom: 8 }} />
-          {[1, 2, 3].map((j) => <Skeleton key={j} w="55%" h={10} style={{ marginBottom: 6, marginLeft: 10 }} />)}
+          {[1, 2, 3].map((j) => (
+            <Skeleton
+              key={j}
+              w="55%"
+              h={10}
+              style={{ marginBottom: 6, marginLeft: 10 }}
+            />
+          ))}
         </div>
       ))}
     </div>
@@ -327,7 +507,10 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 // ─── Landing view ─────────────────────────────────────────────────────────────
 function LandingView({
-  categories, subcategories, onSelectSub, onSelectCat,
+  categories,
+  subcategories,
+  onSelectSub,
+  onSelectCat,
 }: {
   categories: ICategory[];
   subcategories: ISubcategory[];
@@ -340,12 +523,12 @@ function LandingView({
     const map: Record<string, ISubcategory[]> = {};
     categories.forEach((cat) => {
       const all = subcategories.filter(
-        (s) => s.category._id.toString() === cat._id.toString()
+        (s) => s.category._id.toString() === cat._id.toString(),
       );
       map[cat._id] = shuffleArray(all).slice(0, RANDOM_PICK);
     });
     return map;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories, subcategories]);
 
   return (
@@ -355,7 +538,7 @@ function LandingView({
         if (pickedSubs.length === 0) return null;
 
         const totalCount = subcategories.filter(
-          (s) => s.category._id.toString() === cat._id.toString()
+          (s) => s.category._id.toString() === cat._id.toString(),
         ).length;
 
         return (
@@ -367,46 +550,80 @@ function LandingView({
               animationDelay: `${catIndex * 0.08}s`,
             }}
           >
-            <div style={{
-              marginBottom: 28, paddingBottom: 14,
-              display: "flex", alignItems: "baseline", gap: 16,
-              borderBottom: "1px solid transparent",
-              backgroundImage: "linear-gradient(90deg, #e8c96a 0%, rgba(184,146,42,0.15) 40%, transparent 80%)",
-              backgroundSize: "100% 1px",
-              backgroundRepeat: "no-repeat",
-              backgroundPosition: "bottom",
-            }}>
-              <button onClick={() => onSelectCat(cat)}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                <span style={{
-                  fontFamily: '"Playfair Display", Georgia, serif',
-                  fontSize: 22, fontWeight: 700, color: "#1a1a2e",
-                  letterSpacing: "-0.01em",
-                  background: "linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}>
+            <div
+              style={{
+                marginBottom: 28,
+                paddingBottom: 14,
+                display: "flex",
+                alignItems: "baseline",
+                gap: 16,
+                borderBottom: "1px solid transparent",
+                backgroundImage:
+                  "linear-gradient(90deg, #e8c96a 0%, rgba(184,146,42,0.15) 40%, transparent 80%)",
+                backgroundSize: "100% 1px",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "bottom",
+              }}
+            >
+              <button
+                onClick={() => onSelectCat(cat)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: '"Playfair Display", Georgia, serif',
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: "#1a1a2e",
+                    letterSpacing: "-0.01em",
+                    background:
+                      "linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
                   {cat.name}
                 </span>
               </button>
               {totalCount > RANDOM_PICK && (
-                <button onClick={() => onSelectCat(cat)} style={{
-                  background: "none", border: "none", cursor: "pointer", padding: 0,
-                  fontSize: 10, color: "#b8922a",
-                  fontFamily: '"Barlow Condensed", sans-serif',
-                  letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 500,
-                }}>
+                <button
+                  onClick={() => onSelectCat(cat)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    fontSize: 10,
+                    color: "#b8922a",
+                    fontFamily: '"Playfair Display", Georgia, serif',
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    fontWeight: 500,
+                  }}
+                >
                   View all {totalCount} →
                 </button>
               )}
             </div>
 
-            <div style={{
-              display: "grid", gap: "32px 20px",
-              gridTemplateColumns: "repeat(4, 1fr)",
-            }}>
+            <div
+              style={{
+                display: "grid",
+                gap: "32px 20px",
+                gridTemplateColumns: "repeat(4, 1fr)",
+              }}
+            >
               {pickedSubs.map((sub) => (
-                <SubcategoryCard key={sub._id} sub={sub} onSelect={onSelectSub} />
+                <SubcategoryCard
+                  key={sub._id}
+                  sub={sub}
+                  onSelect={onSelectSub}
+                />
               ))}
             </div>
           </section>
@@ -422,10 +639,30 @@ function LandingSkeleton() {
       {[1, 2, 3].map((i) => (
         <div key={i} style={{ marginBottom: 48 }}>
           <Skeleton w={180} h={18} style={{ marginBottom: 20 }} />
-          <div style={{ display: "grid", gap: "20px 16px", gridTemplateColumns: "repeat(4, 1fr)" }}>
+          <div
+            style={{
+              display: "grid",
+              gap: "20px 16px",
+              gridTemplateColumns: "repeat(4, 1fr)",
+            }}
+          >
             {Array.from({ length: 4 }).map((_, j) => (
-              <div key={j} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-                <Skeleton style={{ width: "100%", aspectRatio: "1", borderRadius: "50%" }} />
+              <div
+                key={j}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <Skeleton
+                  style={{
+                    width: "100%",
+                    aspectRatio: "1",
+                    borderRadius: "50%",
+                  }}
+                />
                 <Skeleton w="65%" h={11} />
               </div>
             ))}
@@ -439,44 +676,87 @@ function LandingSkeleton() {
 // ─── Buyers Picks ─────────────────────────────────────────────────────────────
 function BuyersPicks({ products }: { products: IPickProduct[] }) {
   const [hovered, setHovered] = useState<string | null>(null);
-  const fallback = "https://images.pexels.com/photos/1458867/pexels-photo-1458867.jpeg?auto=compress&cs=tinysrgb&w=200";
+  const fallback =
+    "https://images.pexels.com/photos/1458867/pexels-photo-1458867.jpeg?auto=compress&cs=tinysrgb&w=200";
 
   return (
-    <aside style={{
-      width: 240, flexShrink: 0,
-      borderLeft: "1px solid rgba(26,26,46,0.08)",
-      background: "#fff",
-      position: "sticky", top: 0, maxHeight: "100vh", overflowY: "auto",
-    }}>
-      <div style={{
-        background: "linear-gradient(160deg, #1a1a2e 0%, #0f3460 100%)",
-        padding: "18px 18px 14px", position: "relative", overflow: "hidden",
-      }}>
-        <div style={{
-          position: "absolute", top: -20, right: -20, width: 80, height: 80,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(184,146,42,0.25), transparent 70%)",
-        }} />
+    <aside
+      style={{
+        width: 240,
+        flexShrink: 0,
+        borderLeft: "1px solid rgba(26,26,46,0.08)",
+        background: "#fff",
+        position: "sticky",
+        top: 0,
+        maxHeight: "100vh",
+        overflowY: "auto",
+      }}
+    >
+      <div
+        style={{
+          background: "linear-gradient(160deg, #1a1a2e 0%, #0f3460 100%)",
+          padding: "18px 18px 14px",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: -20,
+            right: -20,
+            width: 80,
+            height: 80,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle, rgba(184,146,42,0.25), transparent 70%)",
+          }}
+        />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
-            <svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L10 5L5 10L0 5Z" fill="#e8c96a" /></svg>
-            <span style={{
-              fontSize: 8, letterSpacing: "0.28em", textTransform: "uppercase",
-              color: "#e8c96a", fontFamily: '"Barlow Condensed", sans-serif', fontWeight: 600,
-            }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              marginBottom: 4,
+            }}
+          >
+            <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+              <path d="M5 0L10 5L5 10L0 5Z" fill="#e8c96a" />
+            </svg>
+            <span
+              style={{
+                fontSize: 8,
+                letterSpacing: "0.28em",
+                textTransform: "uppercase",
+                color: "#e8c96a",
+                fontFamily: '"Playfair Display", Georgia, serif',
+                fontWeight: 600,
+              }}
+            >
               Curated Picks
             </span>
           </div>
-          <p style={{
-            fontFamily: '"Playfair Display", Georgia, serif',
-            fontSize: 16, fontWeight: 700, color: "#fff",
-          }}>
+          <p
+            style={{
+              fontFamily: '"Playfair Display", Georgia, serif',
+              fontSize: 16,
+              fontWeight: 700,
+              color: "#fff",
+            }}
+          >
             Best Sellers
           </p>
         </div>
       </div>
 
-      <div style={{ height: 2, background: "linear-gradient(90deg, transparent, #e8c96a 40%, #b8922a 60%, transparent)" }} />
+      <div
+        style={{
+          height: 2,
+          background:
+            "linear-gradient(90deg, transparent, #e8c96a 40%, #b8922a 60%, transparent)",
+        }}
+      />
 
       <div style={{ padding: "6px 0" }}>
         {products.map((p, i) => {
@@ -492,47 +772,89 @@ function BuyersPicks({ products }: { products: IPickProduct[] }) {
               onMouseEnter={() => setHovered(p._id)}
               onMouseLeave={() => setHovered(null)}
               style={{
-                padding: "12px 14px", borderBottom: "1px solid rgba(26,26,46,0.06)",
+                padding: "12px 14px",
+                borderBottom: "1px solid rgba(26,26,46,0.06)",
                 cursor: "pointer",
-                background: isHovered ? "linear-gradient(90deg, rgba(184,146,42,0.05), transparent)" : "transparent",
+                background: isHovered
+                  ? "linear-gradient(90deg, rgba(184,146,42,0.05), transparent)"
+                  : "transparent",
                 transition: "background 0.25s",
-                display: "flex", gap: 10, alignItems: "center",
+                display: "flex",
+                gap: 10,
+                alignItems: "center",
               }}
             >
-              <div style={{
-                width: 20, height: 20, flexShrink: 0,
-                background: rankColors[i] ?? "linear-gradient(135deg, #0f3460, #1a3a6b)",
-                color: "#fff", fontSize: 9, fontWeight: 800,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: '"Barlow Condensed", sans-serif',
-                clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
-              }}>
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  flexShrink: 0,
+                  background:
+                    rankColors[i] ??
+                    "linear-gradient(135deg, #0f3460, #1a3a6b)",
+                  color: "#fff",
+                  fontSize: 9,
+                  fontWeight: 800,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontFamily: '"Playfair Display", Georgia, serif',
+                  clipPath:
+                    "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+                }}
+              >
                 {i + 1}
               </div>
-              <div style={{
-                width: 58, height: 58, flexShrink: 0, borderRadius: "50%", overflow: "hidden",
-                boxShadow: isHovered ? "0 6px 18px -4px rgba(184,146,42,0.4)" : "0 2px 8px -2px rgba(0,0,0,0.12)",
-                transition: "box-shadow 0.3s",
-              }}>
-                <img src={p.image ?? fallback} alt={p.name} style={{
-                  width: "100%", height: "100%", objectFit: "cover",
-                  transform: isHovered ? "scale(1.1)" : "scale(1)",
-                  transition: "transform 0.4s ease",
-                }} />
+              <div
+                style={{
+                  width: 58,
+                  height: 58,
+                  flexShrink: 0,
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  boxShadow: isHovered
+                    ? "0 6px 18px -4px rgba(184,146,42,0.4)"
+                    : "0 2px 8px -2px rgba(0,0,0,0.12)",
+                  transition: "box-shadow 0.3s",
+                }}
+              >
+                <img
+                  src={p.image ?? fallback}
+                  alt={p.name}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    transform: isHovered ? "scale(1.1)" : "scale(1)",
+                    transition: "transform 0.4s ease",
+                  }}
+                />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{
-                  fontFamily: '"Playfair Display", Georgia, serif',
-                  fontSize: 11.5, color: "#1a1a2e", lineHeight: 1.35, marginBottom: 4,
-                  overflow: "hidden", textOverflow: "ellipsis",
-                  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-                }}>
+                <p
+                  style={{
+                    fontFamily: '"Playfair Display", Georgia, serif',
+                    fontSize: 11.5,
+                    color: "#1a1a2e",
+                    lineHeight: 1.35,
+                    marginBottom: 4,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                  }}
+                >
                   {p.name}
                 </p>
-                <span style={{
-                  fontFamily: '"Playfair Display", Georgia, serif',
-                  fontSize: 12, fontWeight: 700, color: "#0f3460",
-                }}>
+                <span
+                  style={{
+                    fontFamily: '"Playfair Display", Georgia, serif',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#0f3460",
+                  }}
+                >
                   ₹{p.price.toLocaleString("en-IN")}
                 </span>
               </div>
@@ -545,20 +867,27 @@ function BuyersPicks({ products }: { products: IPickProduct[] }) {
         <div style={{ padding: "14px 14px 18px" }}>
           <button
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg, #e8c96a, #b8922a)";
+              (e.currentTarget as HTMLElement).style.background =
+                "linear-gradient(135deg, #e8c96a, #b8922a)";
               (e.currentTarget as HTMLElement).style.color = "#1a1a2e";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "linear-gradient(135deg, #1a1a2e, #0f3460)";
+              (e.currentTarget as HTMLElement).style.background =
+                "linear-gradient(135deg, #1a1a2e, #0f3460)";
               (e.currentTarget as HTMLElement).style.color = "#e8c96a";
             }}
             style={{
-              width: "100%", padding: "10px 0",
+              width: "100%",
+              padding: "10px 0",
               background: "linear-gradient(135deg, #1a1a2e, #0f3460)",
-              border: "none", cursor: "pointer",
-              fontFamily: '"Barlow Condensed", sans-serif', fontSize: 9,
-              letterSpacing: "0.24em", textTransform: "uppercase",
-              color: "#e8c96a", fontWeight: 600,
+              border: "none",
+              cursor: "pointer",
+              fontFamily: '"Playfair Display", Georgia, serif',
+              fontSize: 9,
+              letterSpacing: "0.24em",
+              textTransform: "uppercase",
+              color: "#e8c96a",
+              fontWeight: 600,
               transition: "background 0.3s, color 0.3s",
               borderRadius: 1,
             }}
@@ -575,28 +904,36 @@ function BuyersPicks({ products }: { products: IPickProduct[] }) {
 export default function ShopLayout() {
   const router = useRouter();
 
-  const [categories, setCategories]       = useState<ICategory[]>([]);
+  const [categories, setCategories] = useState<ICategory[]>([]);
   const [subcategories, setSubcategories] = useState<ISubcategory[]>([]);
-  const [products, setProducts]           = useState<IProduct[]>([]);
-  const [loadingCats, setLoadingCats]     = useState(true);
-  const [loadingProds, setLoadingProds]   = useState(false);
-  const [buyersPicks, setBuyersPicks]     = useState<IPickProduct[]>([]);
+  const [products, setProducts] = useState<IProduct[]>([]);
+  const [loadingCats, setLoadingCats] = useState(true);
+  const [loadingProds, setLoadingProds] = useState(false);
+  const [buyersPicks, setBuyersPicks] = useState<IPickProduct[]>([]);
 
-  const [activeSub, setActiveSub]   = useState<ISubcategory | null>(null);
-  const [activeCat, setActiveCat]   = useState<ICategory | null>(null);
+  const [activeSub, setActiveSub] = useState<ISubcategory | null>(null);
+  const [activeCat, setActiveCat] = useState<ICategory | null>(null);
 
-  const [sortBy, setSortBy]         = useState("featured");
+  const [sortBy, setSortBy] = useState("featured");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [catError, setCatError]     = useState("");
-  const [prodError, setProdError]   = useState("");
+  const [catError, setCatError] = useState("");
+  const [prodError, setProdError] = useState("");
 
   useEffect(() => {
     fetch("/api/categories?withSubcategories=true")
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((json) => {
-        const enriched: Array<ICategory & { subcategories: ISubcategory[] }> = json.data ?? [];
-        const cats: ICategory[] = enriched.filter((c) => c.isActive).map(({ subcategories: _, ...cat }) => cat as ICategory);
-        const subs: ISubcategory[] = enriched.filter((c) => c.isActive).flatMap((c) => (c.subcategories ?? []).filter((s) => s.isActive));
+        const enriched: Array<ICategory & { subcategories: ISubcategory[] }> =
+          json.data ?? [];
+        const cats: ICategory[] = enriched
+          .filter((c) => c.isActive)
+          .map(({ subcategories: _, ...cat }) => cat as ICategory);
+        const subs: ISubcategory[] = enriched
+          .filter((c) => c.isActive)
+          .flatMap((c) => (c.subcategories ?? []).filter((s) => s.isActive));
         setCategories(cats);
         setSubcategories(subs);
       })
@@ -613,26 +950,38 @@ export default function ShopLayout() {
     params.set("subcategory", activeSub.slug);
     if (sortBy !== "featured") params.set("sort", sortBy);
     fetch(`/api/products?${params.toString()}`)
-      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((res) => { const raw = res?.data ?? res?.products ?? res?.items ?? res; setProducts(Array.isArray(raw) ? raw : []); })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((res) => {
+        const raw = res?.data ?? res?.products ?? res?.items ?? res;
+        setProducts(Array.isArray(raw) ? raw : []);
+      })
       .catch(() => setProdError("Failed to load products."))
       .finally(() => setLoadingProds(false));
   }, [activeSub, sortBy]);
 
   useEffect(() => {
-    fetch("/api/products/popular").then(r => r.json()).then(res => {
-      const raw = res?.data ?? [];
-      setBuyersPicks(Array.isArray(raw) ? raw : []);
-    });
+    fetch("/api/products/popular")
+      .then((r) => r.json())
+      .then((res) => {
+        const raw = res?.data ?? [];
+        setBuyersPicks(Array.isArray(raw) ? raw : []);
+      });
   }, []);
 
   function subsByCat(catId: string): ISubcategory[] {
-    return subcategories.filter((s) => s.category._id.toString() === catId.toString());
+    return subcategories.filter(
+      (s) => s.category._id.toString() === catId.toString(),
+    );
   }
 
   function handleSelectSub(sub: ISubcategory) {
     setMobileOpen(false);
-    router.push(`/products?category=${sub.category.slug}&subcategory=${sub.slug}`);
+    router.push(
+      `/products?category=${sub.category.slug}&subcategory=${sub.slug}`,
+    );
   }
 
   function handleSelectCat(cat: ICategory) {
@@ -650,7 +999,9 @@ export default function ShopLayout() {
     setActiveCat(null);
   }
 
-  const landingCategories = activeCat ? categories.filter((c) => c._id === activeCat._id) : categories;
+  const landingCategories = activeCat
+    ? categories.filter((c) => c._id === activeCat._id)
+    : categories;
   const parentCat = activeSub ? activeSub.category : null;
 
   return (
@@ -979,108 +1330,170 @@ export default function ShopLayout() {
       `}</style>
 
       <div className="shop-root">
-
         {/* Mobile top bar */}
         <div className="mob-bar">
           <button className="mob-menu-btn" onClick={() => setMobileOpen(true)}>
             <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
               <rect width="12" height="1.5" rx="0.75" fill="currentColor" />
-              <rect y="4.25" width="8" height="1.5" rx="0.75" fill="currentColor" />
-              <rect y="8.5" width="12" height="1.5" rx="0.75" fill="currentColor" />
+              <rect
+                y="4.25"
+                width="8"
+                height="1.5"
+                rx="0.75"
+                fill="currentColor"
+              />
+              <rect
+                y="8.5"
+                width="12"
+                height="1.5"
+                rx="0.75"
+                fill="currentColor"
+              />
             </svg>
             Categories
           </button>
-          <span style={{
-            fontFamily: '"Playfair Display", Georgia, serif',
-            fontSize: 15, fontWeight: 700, color: "#1a1a2e", letterSpacing: "0.01em",
-          }}>
+          <span
+            style={{
+              fontFamily: '"Playfair Display", Georgia, serif',
+              fontSize: 15,
+              fontWeight: 700,
+              color: "#1a1a2e",
+              letterSpacing: "0.01em",
+            }}
+          >
             Alpha Imports
           </span>
         </div>
 
         <div className="shop-body">
-          <div className={`sidebar-overlay ${mobileOpen ? "open" : ""}`} onClick={() => setMobileOpen(false)} />
+          <div
+            className={`sidebar-overlay ${mobileOpen ? "open" : ""}`}
+            onClick={() => setMobileOpen(false)}
+          />
 
           {/* ── Sidebar ── */}
           <aside className={`sidebar ${mobileOpen ? "open" : ""}`}>
             <div className="sidebar-header">
               <div className="sidebar-header-title">
                 <span>Collections</span>
-                <button className="mob-close" onClick={() => setMobileOpen(false)}>✕</button>
+                <button
+                  className="mob-close"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  ✕
+                </button>
               </div>
             </div>
 
             <div className="sidebar-quicklinks">
-              {["Advanced Diamond Search", "Advanced Precious Gem Search"].map((l) => (
-                <a key={l} href="#" className="sidebar-quicklink">{l}</a>
-              ))}
+              {["Advanced Diamond Search", "Advanced Precious Gem Search"].map(
+                (l) => (
+                  <a key={l} href="#" className="sidebar-quicklink">
+                    {l}
+                  </a>
+                ),
+              )}
             </div>
 
             {catError && (
-              <p style={{
-                fontSize: 11, color: "#b91c1c", padding: "10px 18px",
-                fontFamily: '"Barlow Condensed", sans-serif',
-              }}>
+              <p
+                style={{
+                  fontSize: 11,
+                  color: "#b91c1c",
+                  padding: "10px 18px",
+                  fontFamily: '"Playfair Display", Georgia, serif',
+                }}
+              >
                 {catError}
               </p>
             )}
 
-            {loadingCats ? <SidebarSkeleton /> : categories.map((cat) => (
-              <SidebarGroup
-                key={cat._id}
-                category={cat}
-                subcategories={subsByCat(cat._id)}
-                activeSubSlug={activeSub?.slug ?? ""}
-                onSelectSub={handleSelectSub}
-                onSelectCat={handleSelectCat}
-              />
-            ))}
+            {loadingCats ? (
+              <SidebarSkeleton />
+            ) : (
+              categories.map((cat) => (
+                <SidebarGroup
+                  key={cat._id}
+                  category={cat}
+                  subcategories={subsByCat(cat._id)}
+                  activeSubSlug={activeSub?.slug ?? ""}
+                  onSelectSub={handleSelectSub}
+                  onSelectCat={handleSelectCat}
+                />
+              ))
+            )}
 
-            {["Alpha Collector's Gallery", "Vouchers", "Occasions & Gifts"].map((l) => (
-              <div key={l} style={{ borderBottom: "1px solid rgba(26,26,46,0.08)" }}>
-                <button style={{
-                  width: "100%", textAlign: "left", padding: "10px 16px",
-                  background: "transparent", border: "none", cursor: "pointer",
-                  transition: "background 0.2s",
-                }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(26,26,46,0.03)")}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
+            {["Alpha Collector's Gallery", "Vouchers", "Occasions & Gifts"].map(
+              (l) => (
+                <div
+                  key={l}
+                  style={{ borderBottom: "1px solid rgba(26,26,46,0.08)" }}
                 >
-                  <span style={{
-                    fontFamily: '"Playfair Display", Georgia, serif',
-                    fontSize: 13, fontWeight: 700, color: "#1a1a2e",
-                  }}>
-                    {l}
-                  </span>
-                </button>
-              </div>
-            ))}
+                  <button
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "10px 16px",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      transition: "background 0.2s",
+                    }}
+                    onMouseEnter={(e) =>
+                      ((e.currentTarget as HTMLElement).style.background =
+                        "rgba(26,26,46,0.03)")
+                    }
+                    onMouseLeave={(e) =>
+                      ((e.currentTarget as HTMLElement).style.background =
+                        "transparent")
+                    }
+                  >
+                    <span
+                      style={{
+                        fontFamily: '"Playfair Display", Georgia, serif',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: "#1a1a2e",
+                      }}
+                    >
+                      {l}
+                    </span>
+                  </button>
+                </div>
+              ),
+            )}
 
             {/* Decorative bottom accent */}
-            <div style={{
-              margin: "20px 18px",
-              height: 1,
-              background: "linear-gradient(90deg, transparent, #e8c96a 50%, transparent)",
-              opacity: 0.5,
-            }} />
+            <div
+              style={{
+                margin: "20px 18px",
+                height: 1,
+                background:
+                  "linear-gradient(90deg, transparent, #e8c96a 50%, transparent)",
+                opacity: 0.5,
+              }}
+            />
           </aside>
 
           {/* ── Main ── */}
           <div className="shop-main-wrap">
             <main className="shop-main">
-
               {/* Breadcrumb + Sort toolbar */}
               {activeSub && (
                 <div className="shop-toolbar fade-up">
                   <nav className="shop-breadcrumb">
-                    <button className="breadcrumb-btn" onClick={goHome}>All Collections</button>
+                    <button className="breadcrumb-btn" onClick={goHome}>
+                      All Collections
+                    </button>
                     {parentCat && (
                       <>
                         <span className="breadcrumb-sep">›</span>
                         <button
                           className="breadcrumb-btn"
                           onClick={() => {
-                            const cat = categories.find((c) => c._id === parentCat._id);
+                            const cat = categories.find(
+                              (c) => c._id === parentCat._id,
+                            );
                             if (cat) handleSelectCatLocal(cat);
                           }}
                         >
@@ -1098,7 +1511,11 @@ export default function ShopLayout() {
                         {products.length} item{products.length !== 1 ? "s" : ""}
                       </span>
                     )}
-                    <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="sort-select">
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="sort-select"
+                    >
                       <option value="featured">Featured</option>
                       <option value="price-asc">Price: Low → High</option>
                       <option value="price-desc">Price: High → Low</option>
@@ -1111,71 +1528,112 @@ export default function ShopLayout() {
               {/* Error */}
               {prodError && (
                 <div className="error-block">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-                    <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4" />
-                    <path d="M8 5v3.5M8 11v.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    style={{ flexShrink: 0 }}
+                  >
+                    <circle
+                      cx="8"
+                      cy="8"
+                      r="7"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                    />
+                    <path
+                      d="M8 5v3.5M8 11v.5"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
                   </svg>
                   {prodError}
                 </div>
               )}
 
               {/* Landing */}
-              {!activeSub && (
-                loadingCats ? <LandingSkeleton /> : (
+              {!activeSub &&
+                (loadingCats ? (
+                  <LandingSkeleton />
+                ) : (
                   <LandingView
                     categories={landingCategories}
                     subcategories={subcategories}
                     onSelectSub={handleSelectSub}
                     onSelectCat={handleSelectCat}
                   />
-                )
-              )}
+                ))}
 
               {/* Products loading */}
               {activeSub && loadingProds && (
                 <div className="fade-up">
                   <Skeleton w={220} h={20} style={{ marginBottom: 24 }} />
                   <div className="product-grid">
-                    {Array.from({ length: 10 }).map((_, i) => <ProductCardSkeleton key={i} />)}
+                    {Array.from({ length: 10 }).map((_, i) => (
+                      <ProductCardSkeleton key={i} />
+                    ))}
                   </div>
                 </div>
               )}
 
               {/* Empty state */}
-              {activeSub && !loadingProds && !prodError && products.length === 0 && (
-                <div className="empty-state fade-up">
-                  <div className="empty-gem">◆</div>
-                  <p style={{
-                    fontFamily: '"Playfair Display", Georgia, serif',
-                    fontSize: 20, color: "#1a1a2e", fontStyle: "italic",
-                  }}>
-                    Nothing in {activeSub.name} yet
-                  </p>
-                  <p style={{
-                    fontFamily: '"Barlow Condensed", sans-serif',
-                    fontSize: 12, color: "#9f9fc0", letterSpacing: "0.08em",
-                  }}>
-                    Check back soon or explore another collection.
-                  </p>
-                  <button
-                    onClick={goHome}
-                    style={{
-                      marginTop: 8,
-                      padding: "9px 22px",
-                      background: "linear-gradient(135deg, #1a1a2e, #0f3460)",
-                      border: "none", cursor: "pointer",
-                      fontFamily: '"Barlow Condensed", sans-serif',
-                      fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase",
-                      color: "#e8c96a", fontWeight: 600, borderRadius: 1,
-                      transition: "opacity 0.2s",
-                    }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.85")}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
-                  >
-                    Browse All Collections
-                  </button>
-                </div>
-              )}
+              {activeSub &&
+                !loadingProds &&
+                !prodError &&
+                products.length === 0 && (
+                  <div className="empty-state fade-up">
+                    <div className="empty-gem">◆</div>
+                    <p
+                      style={{
+                        fontFamily: '"Playfair Display", Georgia, serif',
+                        fontSize: 20,
+                        color: "#1a1a2e",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      Nothing in {activeSub.name} yet
+                    </p>
+                    <p
+                      style={{
+                        fontFamily: '"Playfair Display", Georgia, serif',
+                        fontSize: 12,
+                        color: "#9f9fc0",
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      Check back soon or explore another collection.
+                    </p>
+                    <button
+                      onClick={goHome}
+                      style={{
+                        marginTop: 8,
+                        padding: "9px 22px",
+                        background: "linear-gradient(135deg, #1a1a2e, #0f3460)",
+                        border: "none",
+                        cursor: "pointer",
+                        fontFamily: '"Playfair Display", Georgia, serif',
+                        fontSize: 9,
+                        letterSpacing: "0.24em",
+                        textTransform: "uppercase",
+                        color: "#e8c96a",
+                        fontWeight: 600,
+                        borderRadius: 1,
+                        transition: "opacity 0.2s",
+                      }}
+                      onMouseEnter={(e) =>
+                        ((e.currentTarget as HTMLElement).style.opacity =
+                          "0.85")
+                      }
+                      onMouseLeave={(e) =>
+                        ((e.currentTarget as HTMLElement).style.opacity = "1")
+                      }
+                    >
+                      Browse All Collections
+                    </button>
+                  </div>
+                )}
 
               {/* Products grid */}
               {activeSub && !loadingProds && products.length > 0 && (
@@ -1183,8 +1641,18 @@ export default function ShopLayout() {
                   <div className="section-heading-row">
                     <h2 className="section-heading-text">{activeSub.name}</h2>
                     <div className="section-heading-rule" />
-                    <svg width="8" height="8" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0 }}>
-                      <path d="M5 0L10 5L5 10L0 5Z" fill="#e8c96a" opacity="0.7" />
+                    <svg
+                      width="8"
+                      height="8"
+                      viewBox="0 0 10 10"
+                      fill="none"
+                      style={{ flexShrink: 0 }}
+                    >
+                      <path
+                        d="M5 0L10 5L5 10L0 5Z"
+                        fill="#e8c96a"
+                        opacity="0.7"
+                      />
                     </svg>
                   </div>
                   <div className="product-grid">
@@ -1192,7 +1660,9 @@ export default function ShopLayout() {
                       <div
                         key={p._id}
                         className="fade-up"
-                        style={{ animationDelay: `${Math.min(i * 0.04, 0.32)}s` }}
+                        style={{
+                          animationDelay: `${Math.min(i * 0.04, 0.32)}s`,
+                        }}
                       >
                         <ProductCard product={p} />
                       </div>
@@ -1201,8 +1671,6 @@ export default function ShopLayout() {
                 </section>
               )}
             </main>
-
-
           </div>
         </div>
       </div>

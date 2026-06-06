@@ -375,7 +375,6 @@ export async function POST(req: NextRequest) {
         if (collectedSubcategories.length > 0) responsePayload.subcategories = collectedSubcategories;
         if (comparisonData)                    responsePayload.comparison    = comparisonData;
 
-        console.log("[GemAI] Final SSE payload keys:", Object.keys(responsePayload));
         console.log(
           "[GemAI] Counts — products:", collectedProducts.length,
           "| categories:", collectedCategories.length,
