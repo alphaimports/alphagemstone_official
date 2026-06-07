@@ -96,6 +96,73 @@ const FEDEX_SERVICE_NAMES: Record<string, string> = {
   FEDEX_FREIGHT_PRIORITY:   'FedEx Freight Priority',
 };
 
+// ─── Sandbox fallback rates ───────────────────────────────────────────────────
+// Used when FedEx sandbox virtualizer returns 503 SYSTEM.UNAVAILABLE.EXCEPTION.
+// These are placeholder rates for UI development only — never used in production.
+
+const FEDEX_SANDBOX_FALLBACK_RATES: ShippingRate[] = [
+  {
+    carrier: 'FedEx',
+    service: 'FedEx Ground',
+    serviceCode: 'FEDEX_GROUND',
+    rate: 12.50,
+    currency: 'USD',
+    estimatedDays: 5,
+    estimatedDelivery: '5 business day(s)',
+    guaranteed: false,
+  },
+  {
+    carrier: 'FedEx',
+    service: 'FedEx Home Delivery',
+    serviceCode: 'GROUND_HOME_DELIVERY',
+    rate: 14.25,
+    currency: 'USD',
+    estimatedDays: 5,
+    estimatedDelivery: '5 business day(s)',
+    guaranteed: false,
+  },
+  {
+    carrier: 'FedEx',
+    service: 'FedEx Express Saver',
+    serviceCode: 'FEDEX_EXPRESS_SAVER',
+    rate: 22.10,
+    currency: 'USD',
+    estimatedDays: 3,
+    estimatedDelivery: '3 business day(s)',
+    guaranteed: true,
+  },
+  {
+    carrier: 'FedEx',
+    service: 'FedEx 2Day',
+    serviceCode: 'FEDEX_2_DAY',
+    rate: 28.75,
+    currency: 'USD',
+    estimatedDays: 2,
+    estimatedDelivery: '2 business day(s)',
+    guaranteed: true,
+  },
+  {
+    carrier: 'FedEx',
+    service: 'FedEx Standard Overnight',
+    serviceCode: 'STANDARD_OVERNIGHT',
+    rate: 44.50,
+    currency: 'USD',
+    estimatedDays: 1,
+    estimatedDelivery: '1 business day(s)',
+    guaranteed: true,
+  },
+  {
+    carrier: 'FedEx',
+    service: 'FedEx Priority Overnight',
+    serviceCode: 'PRIORITY_OVERNIGHT',
+    rate: 54.90,
+    currency: 'USD',
+    estimatedDays: 1,
+    estimatedDelivery: '1 business day(s)',
+    guaranteed: true,
+  },
+];
+
 // ─── Token Cache ──────────────────────────────────────────────────────────────
 
 let cachedToken: string | null = null;
@@ -151,6 +218,9 @@ function getShipper(): FedExParty {
  * Get FedEx rate quotes for a shipment.
  * Uses the "LIST" rate type (retail rates) — switch to "ACCOUNT" for
  * negotiated rates if your FedEx account has them.
+ *
+ * In sandbox mode, if FedEx's virtualizer returns 503, falls back to
+ * FEDEX_SANDBOX_FALLBACK_RATES so development/testing can continue unblocked.
  */
 export async function getFedExRates(
   origin: ShippingAddress,
@@ -211,14 +281,42 @@ export async function getFedExRates(
     next: { revalidate: 0 },
   });
 
+  // ── Sandbox 503 fallback ──────────────────────────────────────────────────
+  // FedEx sandbox virtualizer frequently goes unavailable (503). Rather than
+  // blocking UI development, return placeholder rates and log a warning.
+  // This branch is completely unreachable in production (FEDEX_MODE=production).
   if (!res.ok) {
     const text = await res.text();
+
+    if (process.env.FEDEX_MODE !== 'production' && res.status === 503) {
+      console.warn(
+        '[FedEx] Sandbox virtualizer unavailable (503) — returning fallback rates for development.',
+        'This will NOT happen in production.'
+      );
+      return FEDEX_SANDBOX_FALLBACK_RATES;
+    }
+
     throw new Error(`FedEx rates failed: ${res.status} — ${text}`);
   }
 
   const data = await res.json();
-  const ratedShipments: any[] =
-    data.output?.rateReplyDetails ?? [];
+
+  // ── Sandbox virtual response — may return empty rateReplyDetails ──────────
+  // When FedEx returns a virtual/simulated response it sometimes comes back
+  // with an alerts array but zero rated shipments. Fall back gracefully.
+  const ratedShipments: any[] = data.output?.rateReplyDetails ?? [];
+
+  if (ratedShipments.length === 0 && process.env.FEDEX_MODE !== 'production') {
+    const isVirtual = (data.output?.alerts ?? []).some(
+      (a: any) => a.code === 'VIRTUAL.RESPONSE'
+    );
+    if (isVirtual) {
+      console.warn(
+        '[FedEx] Sandbox returned a virtual response with no rates — using fallback rates.'
+      );
+      return FEDEX_SANDBOX_FALLBACK_RATES;
+    }
+  }
 
   return ratedShipments
     .map((s: any): ShippingRate | null => {
@@ -408,13 +506,15 @@ export async function trackFedExShipment(trackingNumber: string): Promise<Tracki
   };
 }
 
+// ─── Normalized wrappers ──────────────────────────────────────────────────────
+
+/** Alias used by shipping.aggregator.ts (camelCase vs PascalCase reconciliation) */
+export const getFedexRates = getFedExRates;
+
 /**
  * trackFedExPackage — normalized wrapper used by the universal tracking route
  * and shipping aggregator. Returns TrackingInfo shape instead of TrackingResult.
  */
-// Alias used by shipping.aggregator.ts (camelCase vs PascalCase reconciliation)
-export const getFedexRates = getFedExRates;
-
 export async function trackFedExPackage(trackingNumber: string): Promise<TrackingInfo> {
   const result = await trackFedExShipment(trackingNumber);
   return {

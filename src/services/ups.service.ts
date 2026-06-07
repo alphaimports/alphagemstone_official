@@ -21,6 +21,8 @@ const UPS_CLIENT_ID = process.env.UPS_CLIENT_ID ?? "";
 const UPS_CLIENT_SECRET = process.env.UPS_CLIENT_SECRET ?? "";
 const UPS_ACCOUNT_NUMBER = process.env.UPS_ACCOUNT_NUMBER ?? "";
 
+const IS_SANDBOX = UPS_BASE_URL.includes("wwwcie");
+
 // ─── UPS service code → human label map ─────────────────────────────────────
 
 const UPS_SERVICE_NAMES: Record<string, string> = {
@@ -37,6 +39,63 @@ const UPS_SERVICE_NAMES: Record<string, string> = {
   "59": "UPS 2nd Day Air AM",
   "65": "UPS Worldwide Saver",
 };
+
+// ─── Sandbox fallback rates ───────────────────────────────────────────────────
+// Used when UPS CIE sandbox rejects credentials or is unavailable.
+// These are placeholder rates for UI development only — never used in production.
+
+const UPS_SANDBOX_FALLBACK_RATES: ShippingRate[] = [
+  {
+    carrier: "UPS",
+    service: "UPS Ground",
+    serviceCode: "03",
+    rate: 11.85,
+    currency: "USD",
+    estimatedDays: 5,
+    estimatedDelivery: "5 business day(s)",
+    guaranteed: false,
+  },
+  {
+    carrier: "UPS",
+    service: "UPS 3 Day Select",
+    serviceCode: "12",
+    rate: 19.40,
+    currency: "USD",
+    estimatedDays: 3,
+    estimatedDelivery: "3 business day(s)",
+    guaranteed: true,
+  },
+  {
+    carrier: "UPS",
+    service: "UPS 2nd Day Air",
+    serviceCode: "02",
+    rate: 27.60,
+    currency: "USD",
+    estimatedDays: 2,
+    estimatedDelivery: "2 business day(s)",
+    guaranteed: true,
+  },
+  {
+    carrier: "UPS",
+    service: "UPS Next Day Air Saver",
+    serviceCode: "13",
+    rate: 41.20,
+    currency: "USD",
+    estimatedDays: 1,
+    estimatedDelivery: "1 business day(s)",
+    guaranteed: true,
+  },
+  {
+    carrier: "UPS",
+    service: "UPS Next Day Air",
+    serviceCode: "01",
+    rate: 52.75,
+    currency: "USD",
+    estimatedDays: 1,
+    estimatedDelivery: "1 business day(s)",
+    guaranteed: true,
+  },
+];
 
 // ─── OAuth token cache (in-memory; acceptable for server-side Next.js) ───────
 
@@ -103,6 +162,37 @@ async function upsRequest<T>(path: string, body: object, token: string): Promise
 // ─── Rates ───────────────────────────────────────────────────────────────────
 
 export async function getUpsRates(
+  origin: ShippingAddress,
+  destination: ShippingAddress,
+  pkg: PackageDimensions
+): Promise<ShippingRate[]> {
+  // ── Sandbox auth fallback ─────────────────────────────────────────────────
+  // UPS CIE sandbox frequently rejects valid credentials if:
+  //   • The Rating API product isn't added to your app on developer.ups.com
+  //   • The account number isn't linked to the CIE app
+  //   • CIE itself is having an outage
+  // Rather than blocking development, return fallback rates and log a warning.
+  // This try/catch wraps the entire function — production throws normally
+  // because IS_SANDBOX will be false.
+  try {
+    return await _getUpsRatesFromApi(origin, destination, pkg);
+  } catch (err: any) {
+    if (IS_SANDBOX) {
+      console.warn(
+        "[UPS] CIE sandbox auth/rate error — returning fallback rates for development.",
+        "Error was:", err.message,
+        "\nThis will NOT happen in production.",
+        "\nTo fix: go to developer.ups.com → your app → Products → ensure 'Rating' is added,",
+        "and confirm account number", UPS_ACCOUNT_NUMBER, "is linked to the CIE app."
+      );
+      return UPS_SANDBOX_FALLBACK_RATES;
+    }
+    // Production: re-throw so the aggregator captures it properly
+    throw err;
+  }
+}
+
+async function _getUpsRatesFromApi(
   origin: ShippingAddress,
   destination: ShippingAddress,
   pkg: PackageDimensions
@@ -251,7 +341,6 @@ export async function trackUpsPackage(trackingNumber: string): Promise<TrackingI
   if (!pkg) throw new Error("UPS: no package data in tracking response");
 
   const statusDescription = pkg.currentStatus?.description ?? "Unknown";
-  const statusCode = pkg.currentStatus?.code ?? "";
 
   const deliveryDate = pkg.deliveryDate?.find((d: any) => d.type === "DEL")?.date ?? null;
   const scheduledDelivery = pkg.deliveryDate?.find((d: any) => d.type === "SCH")?.date ?? null;
@@ -308,7 +397,7 @@ export async function validateUpsAddress(address: ShippingAddress): Promise<{
     };
 
     const data = await upsRequest<UpsAvResponse>(
-      "/api/addressvalidation/v2/3", // level 3 = classification + candidate addresses
+      "/api/addressvalidation/v2/3",
       {
         XAVRequest: {
           AddressKeyFormat: {
@@ -360,8 +449,8 @@ export async function validateUpsAddress(address: ShippingAddress): Promise<{
 
 export interface UpsShipmentResult {
   trackingNumber: string;
-  labelBase64: string;   // base64-encoded GIF/ZPL label
-  labelFormat: string;   // "GIF" or "ZPL"
+  labelBase64: string;
+  labelFormat: string;
   shipmentId: string;
   serviceType: string;
   serviceCode: string;
@@ -370,13 +459,6 @@ export interface UpsShipmentResult {
   carrier: 'UPS';
 }
 
-/**
- * Creates a UPS shipment and generates a shipping label via the UPS Shipping v2403 API.
- * Uses the OAuth token obtained by getUpsAccessToken().
- *
- * Sandbox: set UPS_BASE_URL=https://wwwcie.ups.com
- * Production: set UPS_BASE_URL=https://onlinetools.ups.com
- */
 export async function createUpsShipment(
   origin: ShippingAddress,
   destination: ShippingAddress,
@@ -384,7 +466,7 @@ export async function createUpsShipment(
   options: { serviceCode?: string; customerRef?: string } = {}
 ): Promise<UpsShipmentResult> {
   const token = await getUpsAccessToken();
-  const serviceCode = options.serviceCode ?? '03';  // '03' = UPS Ground
+  const serviceCode = options.serviceCode ?? '03';
 
   const body = {
     ShipmentRequest: {
@@ -428,7 +510,7 @@ export async function createUpsShipment(
         },
         Service: { Code: serviceCode },
         Package: {
-          Packaging: { Code: '02' },  // Customer-supplied package
+          Packaging: { Code: '02' },
           Dimensions: {
             UnitOfMeasurement: { Code: 'IN' },
             Length: String(pkg.lengthIn),

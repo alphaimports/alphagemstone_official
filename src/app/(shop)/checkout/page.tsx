@@ -427,6 +427,8 @@ export default function CheckoutPage() {
           shippingEstimatedDelivery: selectedShipping.estimatedDelivery ?? null,
         }),
       });
+      // ── Set orderId first, then step — both are batched by React 18
+      // but the PayPal block guards on orderId so it won't render until truthy
       setOrderId(data.data._id);
       setStep('payment');
     } catch (err) {
@@ -436,15 +438,21 @@ export default function CheckoutPage() {
     }
   };
 
-  // ─── Step 3: PayPal ────────────────────────────────────────────────────────
+  // ─── Step 3: PayPal handlers ───────────────────────────────────────────────
   const createPayPalOrder = async () => {
-    const data = await apiFetch('/api/payment/paypal/create', { method: 'POST', body: JSON.stringify({ orderId }) });
+    const data = await apiFetch('/api/payment/paypal/create', {
+      method: 'POST',
+      body: JSON.stringify({ orderId }),
+    });
     return data.data.paypalOrderId;
   };
 
   const onPayPalApprove = async (data: { orderID: string }) => {
     try {
-      await apiFetch('/api/payment/paypal/capture', { method: 'POST', body: JSON.stringify({ paypalOrderId: data.orderID }) });
+      await apiFetch('/api/payment/paypal/capture', {
+        method: 'POST',
+        body: JSON.stringify({ paypalOrderId: data.orderID }),
+      });
       router.push('/orders?success=true');
     } catch (err) {
       setApiError(err instanceof Error ? err.message : 'Payment capture failed');
@@ -492,400 +500,426 @@ export default function CheckoutPage() {
   const STEPS: Step[] = ['shipping', 'rates', 'payment'];
   const STEP_LABELS: Record<Step, string> = { shipping: 'Address', rates: 'Shipping', payment: 'Payment' };
 
+  // ─── PayPalScriptProvider options (stable — never recreated) ───────────────
+  // IMPORTANT: defined outside JSX so the object reference doesn't change on
+  // re-render, which would cause the SDK to reload and break the buttons.
+  const paypalOptions = {
+    clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID!,
+    currency: 'USD',
+  };
+
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-        .co * { box-sizing: border-box; margin: 0; padding: 0; }
-        .co input::placeholder { color: #cbd5e1 !important; }
-        .co select { appearance: none; cursor: pointer; }
-        .co input:focus, .co select:focus { outline: none; border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important; }
-        .field-wrap { animation: fadeUp 0.3s ease both; }
-        .submit-btn { transition: all 0.2s; }
-        .submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(99,102,241,0.3); }
-        .submit-btn:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
-        .back-btn:hover { background: #f1f5f9 !important; }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-      `}</style>
+    // ── PayPalScriptProvider wraps the ENTIRE page so it is never
+    // unmounted/remounted as the user moves between steps.
+    // PayPalButtons inside step 3 will work because the SDK is already loaded.
+    <PayPalScriptProvider options={paypalOptions}>
+      <>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+          @keyframes spin { to { transform: rotate(360deg); } }
+          @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+          .co * { box-sizing: border-box; margin: 0; padding: 0; }
+          .co input::placeholder { color: #cbd5e1 !important; }
+          .co select { appearance: none; cursor: pointer; }
+          .co input:focus, .co select:focus { outline: none; border-color: #6366f1 !important; box-shadow: 0 0 0 3px rgba(99,102,241,0.12) !important; }
+          .field-wrap { animation: fadeUp 0.3s ease both; }
+          .submit-btn { transition: all 0.2s; }
+          .submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(99,102,241,0.3); }
+          .submit-btn:active:not(:disabled) { transform: translateY(0); box-shadow: none; }
+          .back-btn:hover { background: #f1f5f9 !important; }
+          ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        `}</style>
 
-      <div className="co" style={{ minHeight: '100vh', background: '#ffffff', fontFamily: "'Poppins', sans-serif" }}>
+        <div className="co" style={{ minHeight: '100vh', background: '#ffffff', fontFamily: "'Poppins', sans-serif" }}>
 
-        {/* Top nav */}
-        <header style={{ background: '#fff', borderBottom: '1px solid #f1f5f9', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Package />
+          {/* Top nav */}
+          <header style={{ background: '#fff', borderBottom: '1px solid #f1f5f9', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Package />
+              </div>
+              <span style={{ fontWeight: 700, fontSize: 16, color: '#1e293b', letterSpacing: '-0.01em' }}>Alpha Imports</span>
             </div>
-            <span style={{ fontWeight: 700, fontSize: 16, color: '#1e293b', letterSpacing: '-0.01em' }}>Alpha Imports</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#64748b', fontSize: 12 }}>
-            <Lock /> <span>Secure Checkout</span>
-          </div>
-        </header>
-
-        {/* Main layout */}
-        <div style={{ maxWidth: 1060, margin: '0 auto', padding: '40px 20px 60px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 40, alignItems: 'start' }}>
-
-          {/* LEFT COLUMN */}
-          <div>
-            <div style={{ marginBottom: 28, animation: 'fadeUp 0.4s ease both' }}>
-              <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: 4 }}>
-                {step === 'shipping' ? 'Delivery Details' : step === 'rates' ? 'Choose Shipping' : 'Complete Payment'}
-              </h1>
-              <p style={{ fontSize: 13, color: '#94a3b8', fontWeight: 400 }}>
-                {step === 'shipping' ? 'Enter your shipping address to continue' : step === 'rates' ? 'Select a shipping method for your order' : 'Review your order and complete payment securely'}
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#64748b', fontSize: 12 }}>
+              <Lock /> <span>Secure Checkout</span>
             </div>
+          </header>
 
-            {/* Step indicator — 3 steps */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 32 }}>
-              {STEPS.map((s, i) => {
-                const done = STEPS.indexOf(step) > i;
-                const active = step === s;
-                return (
-                  <div key={s} style={{ display: 'flex', alignItems: 'center' }}>
-                    {i > 0 && (
-                      <div style={{ width: 48, height: 2, borderRadius: 2, background: done ? '#6366f1' : '#e2e8f0', transition: 'background 0.4s', margin: '0 12px' }} />
-                    )}
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '6px 14px', borderRadius: 100,
-                      background: active ? '#6366f1' : done ? '#f0fdf4' : '#f8fafc',
-                      border: `1.5px solid ${active ? '#6366f1' : done ? '#86efac' : '#e2e8f0'}`,
-                    }}>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: active ? 'rgba(255,255,255,0.2)' : done ? '#22c55e' : '#e2e8f0',
-                        fontSize: 10, fontWeight: 700,
-                        color: active ? '#fff' : done ? '#fff' : '#94a3b8',
-                      }}>
-                        {done ? '✓' : i + 1}
-                      </div>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: active ? '#fff' : done ? '#166534' : '#94a3b8', textTransform: 'capitalize' }}>
-                        {STEP_LABELS[s]}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          {/* Main layout */}
+          <div style={{ maxWidth: 1060, margin: '0 auto', padding: '40px 20px 60px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 40, alignItems: 'start' }}>
 
-            {/* Main card */}
-            <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 24px rgba(0,0,0,0.05)', overflow: 'hidden', animation: 'fadeUp 0.4s ease 0.08s both' }}>
-              <div style={{ height: 3, background: 'linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa)' }} />
-              <div style={{ padding: '28px 28px 32px' }}>
+            {/* LEFT COLUMN */}
+            <div>
+              <div style={{ marginBottom: 28, animation: 'fadeUp 0.4s ease both' }}>
+                <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: 4 }}>
+                  {step === 'shipping' ? 'Delivery Details' : step === 'rates' ? 'Choose Shipping' : 'Complete Payment'}
+                </h1>
+                <p style={{ fontSize: 13, color: '#94a3b8', fontWeight: 400 }}>
+                  {step === 'shipping' ? 'Enter your shipping address to continue' : step === 'rates' ? 'Select a shipping method for your order' : 'Review your order and complete payment securely'}
+                </p>
+              </div>
 
-                {/* ── STEP 1: SHIPPING ADDRESS ── */}
-                {step === 'shipping' && (
-                  <form onSubmit={handleShippingSubmit} noValidate>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-
-                      {/* Full Name */}
-                      <div className="field-wrap" style={{ animationDelay: '0.05s' }}>
-                        <label style={labelStyle}>Full Name <span style={{ color: '#6366f1' }}>*</span></label>
-                        <div style={{ position: 'relative' }}>
-                          <input style={inputStyle(fieldState('fullName'))} placeholder="Rahul Sharma" value={form.fullName}
-                            onChange={(e) => handleChange('fullName', e.target.value)} onBlur={() => handleBlur('fullName')} autoComplete="name" />
-                          {fieldState('fullName') === 'valid' && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
-                        </div>
-                        <FieldError msg={errors.fullName} />
-                      </div>
-
-                      {/* Country */}
-                      <div className="field-wrap" style={{ animationDelay: '0.08s' }}>
-                        <label style={labelStyle}>Country <span style={{ color: '#6366f1' }}>*</span></label>
-                        <div style={{ position: 'relative' }}>
-                          <select style={{ ...inputStyle(fieldState('country')), paddingRight: 40 }} value={form.country}
-                            onChange={(e) => handleCountryChange(e.target.value)} onBlur={() => handleBlur('country')}>
-                            <option value="">Select country…</option>
-                            {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
-                          </select>
-                          <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }}><ChevronDown /></span>
-                        </div>
-                        <FieldError msg={errors.country} />
-                      </div>
-
-                      {/* India pincode */}
-                      {isIndia && (
-                        <div className="field-wrap" style={{ animationDelay: '0.11s' }}>
-                          <label style={labelStyle}>
-                            Pincode <span style={{ color: '#6366f1' }}>*</span>
-                            <span style={{ color: '#94a3b8', marginLeft: 6, fontSize: 11, fontWeight: 400 }}>(auto-fills city & state)</span>
-                          </label>
-                          <div style={{ position: 'relative' }}>
-                            <input
-                              style={pinError ? inputStyle('error') : pinVerified ? inputStyle('valid') : inputStyle(fieldState('postalCode'))}
-                              placeholder="Enter 6-digit pincode" value={form.postalCode}
-                              onChange={(e) => handlePincodeChange(e.target.value)} onBlur={() => handleBlur('postalCode')}
-                              autoComplete="postal-code" maxLength={6} inputMode="numeric" />
-                            {pinLoading && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6366f1' }}><Spinner /></span>}
-                            {pinVerified && !pinLoading && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
-                          </div>
-                          {pinError && <p style={{ marginTop: 5, fontSize: 11.5, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 500 }}><AlertCircle />{pinError}</p>}
-                          <FieldError msg={errors.postalCode} />
-                          <PincodeBanner postOffices={postOffices} onSelect={handlePostOfficeSelect} />
-                          {pinVerified && form.city && form.state && (
-                            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #86efac' }}>
-                              <MapPin />
-                              <span style={{ fontSize: 12.5, color: '#166534', fontWeight: 500 }}>{form.city}, {form.state}, India</span>
-                              <button type="button" onClick={() => { setForm((f) => ({ ...f, postalCode: '', city: '', state: '' })); setPinVerified(false); setPostOffices([]); setPinError(''); setErrors((prev) => { const u = { ...prev }; delete u.city; delete u.state; return u; }); }}
-                                style={{ marginLeft: 'auto', fontSize: 11.5, color: '#6366f1', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                                Change
-                              </button>
-                            </div>
-                          )}
-                        </div>
+              {/* Step indicator */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 32 }}>
+                {STEPS.map((s, i) => {
+                  const done = STEPS.indexOf(step) > i;
+                  const active = step === s;
+                  return (
+                    <div key={s} style={{ display: 'flex', alignItems: 'center' }}>
+                      {i > 0 && (
+                        <div style={{ width: 48, height: 2, borderRadius: 2, background: done ? '#6366f1' : '#e2e8f0', transition: 'background 0.4s', margin: '0 12px' }} />
                       )}
-
-                      {/* Address Line 1 */}
-                      <div className="field-wrap" style={{ animationDelay: '0.13s' }}>
-                        <label style={labelStyle}>Street Address <span style={{ color: '#6366f1' }}>*</span></label>
-                        <div style={{ position: 'relative' }}>
-                          <input style={inputStyle(fieldState('addressLine1'))} placeholder={isIndia ? 'House No., Street, Area' : '123 Main Street'} value={form.addressLine1}
-                            onChange={(e) => handleChange('addressLine1', e.target.value)} onBlur={() => handleBlur('addressLine1')} autoComplete="address-line1" />
-                          {fieldState('addressLine1') === 'valid' && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '6px 14px', borderRadius: 100,
+                        background: active ? '#6366f1' : done ? '#f0fdf4' : '#f8fafc',
+                        border: `1.5px solid ${active ? '#6366f1' : done ? '#86efac' : '#e2e8f0'}`,
+                      }}>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: active ? 'rgba(255,255,255,0.2)' : done ? '#22c55e' : '#e2e8f0',
+                          fontSize: 10, fontWeight: 700,
+                          color: active ? '#fff' : done ? '#fff' : '#94a3b8',
+                        }}>
+                          {done ? '✓' : i + 1}
                         </div>
-                        <FieldError msg={errors.addressLine1} />
+                        <span style={{ fontSize: 12, fontWeight: 600, color: active ? '#fff' : done ? '#166534' : '#94a3b8', textTransform: 'capitalize' }}>
+                          {STEP_LABELS[s]}
+                        </span>
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
 
-                      {/* Address Line 2 */}
-                      <div className="field-wrap" style={{ animationDelay: '0.15s' }}>
-                        <label style={labelStyle}>Apt / Suite / Unit <span style={{ color: '#94a3b8', marginLeft: 6, fontSize: 11, fontWeight: 400 }}>(optional)</span></label>
-                        <input style={inputStyle('idle')} placeholder={isIndia ? 'Landmark, Colony, etc.' : 'Apt 4B, Floor 2, etc.'} value={form.addressLine2}
-                          onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} autoComplete="address-line2" />
-                      </div>
+              {/* Main card */}
+              <div style={{ background: '#fff', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 24px rgba(0,0,0,0.05)', overflow: 'hidden', animation: 'fadeUp 0.4s ease 0.08s both' }}>
+                <div style={{ height: 3, background: 'linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa)' }} />
+                <div style={{ padding: '28px 28px 32px' }}>
 
-                      {/* City + State */}
-                      <div className="field-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, animationDelay: '0.17s' }}>
-                        <div>
-                          <label style={labelStyle}>{isIndia ? 'District / City' : LABELS.city} <span style={{ color: '#6366f1' }}>*</span></label>
+                  {/* ── STEP 1: SHIPPING ADDRESS ── */}
+                  {step === 'shipping' && (
+                    <form onSubmit={handleShippingSubmit} noValidate>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+                        {/* Full Name */}
+                        <div className="field-wrap" style={{ animationDelay: '0.05s' }}>
+                          <label style={labelStyle}>Full Name <span style={{ color: '#6366f1' }}>*</span></label>
                           <div style={{ position: 'relative' }}>
-                            <input style={isIndia && pinVerified ? lockedStyle : inputStyle(fieldState('city'))} placeholder={isIndia ? 'Auto-filled' : 'New York'}
-                              value={form.city} onChange={(e) => !pinVerified && handleChange('city', e.target.value)} onBlur={() => !pinVerified && handleBlur('city')}
-                              readOnly={isIndia && pinVerified} autoComplete="address-level2" />
-                            {((isIndia && pinVerified) || (!isIndia && fieldState('city') === 'valid')) && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
+                            <input style={inputStyle(fieldState('fullName'))} placeholder="Rahul Sharma" value={form.fullName}
+                              onChange={(e) => handleChange('fullName', e.target.value)} onBlur={() => handleBlur('fullName')} autoComplete="name" />
+                            {fieldState('fullName') === 'valid' && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
                           </div>
-                          <FieldError msg={errors.city} />
+                          <FieldError msg={errors.fullName} />
                         </div>
-                        <div>
-                          <label style={labelStyle}>{isIndia ? 'State' : showUSCADropdown ? stateLabel : 'State / Region'}<span style={{ color: '#6366f1' }}> *</span></label>
-                          {isIndia ? (
+
+                        {/* Country */}
+                        <div className="field-wrap" style={{ animationDelay: '0.08s' }}>
+                          <label style={labelStyle}>Country <span style={{ color: '#6366f1' }}>*</span></label>
+                          <div style={{ position: 'relative' }}>
+                            <select style={{ ...inputStyle(fieldState('country')), paddingRight: 40 }} value={form.country}
+                              onChange={(e) => handleCountryChange(e.target.value)} onBlur={() => handleBlur('country')}>
+                              <option value="">Select country…</option>
+                              {COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+                            </select>
+                            <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }}><ChevronDown /></span>
+                          </div>
+                          <FieldError msg={errors.country} />
+                        </div>
+
+                        {/* India pincode */}
+                        {isIndia && (
+                          <div className="field-wrap" style={{ animationDelay: '0.11s' }}>
+                            <label style={labelStyle}>
+                              Pincode <span style={{ color: '#6366f1' }}>*</span>
+                              <span style={{ color: '#94a3b8', marginLeft: 6, fontSize: 11, fontWeight: 400 }}>(auto-fills city & state)</span>
+                            </label>
                             <div style={{ position: 'relative' }}>
-                              {pinVerified ? <input style={lockedStyle} value={form.state} readOnly /> : (
+                              <input
+                                style={pinError ? inputStyle('error') : pinVerified ? inputStyle('valid') : inputStyle(fieldState('postalCode'))}
+                                placeholder="Enter 6-digit pincode" value={form.postalCode}
+                                onChange={(e) => handlePincodeChange(e.target.value)} onBlur={() => handleBlur('postalCode')}
+                                autoComplete="postal-code" maxLength={6} inputMode="numeric" />
+                              {pinLoading && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#6366f1' }}><Spinner /></span>}
+                              {pinVerified && !pinLoading && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
+                            </div>
+                            {pinError && <p style={{ marginTop: 5, fontSize: 11.5, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 500 }}><AlertCircle />{pinError}</p>}
+                            <FieldError msg={errors.postalCode} />
+                            <PincodeBanner postOffices={postOffices} onSelect={handlePostOfficeSelect} />
+                            {pinVerified && form.city && form.state && (
+                              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #86efac' }}>
+                                <MapPin />
+                                <span style={{ fontSize: 12.5, color: '#166534', fontWeight: 500 }}>{form.city}, {form.state}, India</span>
+                                <button type="button" onClick={() => { setForm((f) => ({ ...f, postalCode: '', city: '', state: '' })); setPinVerified(false); setPostOffices([]); setPinError(''); setErrors((prev) => { const u = { ...prev }; delete u.city; delete u.state; return u; }); }}
+                                  style={{ marginLeft: 'auto', fontSize: 11.5, color: '#6366f1', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                  Change
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Address Line 1 */}
+                        <div className="field-wrap" style={{ animationDelay: '0.13s' }}>
+                          <label style={labelStyle}>Street Address <span style={{ color: '#6366f1' }}>*</span></label>
+                          <div style={{ position: 'relative' }}>
+                            <input style={inputStyle(fieldState('addressLine1'))} placeholder={isIndia ? 'House No., Street, Area' : '123 Main Street'} value={form.addressLine1}
+                              onChange={(e) => handleChange('addressLine1', e.target.value)} onBlur={() => handleBlur('addressLine1')} autoComplete="address-line1" />
+                            {fieldState('addressLine1') === 'valid' && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
+                          </div>
+                          <FieldError msg={errors.addressLine1} />
+                        </div>
+
+                        {/* Address Line 2 */}
+                        <div className="field-wrap" style={{ animationDelay: '0.15s' }}>
+                          <label style={labelStyle}>Apt / Suite / Unit <span style={{ color: '#94a3b8', marginLeft: 6, fontSize: 11, fontWeight: 400 }}>(optional)</span></label>
+                          <input style={inputStyle('idle')} placeholder={isIndia ? 'Landmark, Colony, etc.' : 'Apt 4B, Floor 2, etc.'} value={form.addressLine2}
+                            onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} autoComplete="address-line2" />
+                        </div>
+
+                        {/* City + State */}
+                        <div className="field-wrap" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, animationDelay: '0.17s' }}>
+                          <div>
+                            <label style={labelStyle}>{isIndia ? 'District / City' : LABELS.city} <span style={{ color: '#6366f1' }}>*</span></label>
+                            <div style={{ position: 'relative' }}>
+                              <input style={isIndia && pinVerified ? lockedStyle : inputStyle(fieldState('city'))} placeholder={isIndia ? 'Auto-filled' : 'New York'}
+                                value={form.city} onChange={(e) => !pinVerified && handleChange('city', e.target.value)} onBlur={() => !pinVerified && handleBlur('city')}
+                                readOnly={isIndia && pinVerified} autoComplete="address-level2" />
+                              {((isIndia && pinVerified) || (!isIndia && fieldState('city') === 'valid')) && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
+                            </div>
+                            <FieldError msg={errors.city} />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>{isIndia ? 'State' : showUSCADropdown ? stateLabel : 'State / Region'}<span style={{ color: '#6366f1' }}> *</span></label>
+                            {isIndia ? (
+                              <div style={{ position: 'relative' }}>
+                                {pinVerified ? <input style={lockedStyle} value={form.state} readOnly /> : (
+                                  <select style={{ ...inputStyle(fieldState('state')), paddingRight: 40 }} value={form.state}
+                                    onChange={(e) => { setForm((f) => ({ ...f, state: e.target.value })); setTouched((t) => ({ ...t, state: true })); }} onBlur={() => handleBlur('state')}>
+                                    <option value="">Select state…</option>
+                                    {IN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                )}
+                                {pinVerified
+                                  ? <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>
+                                  : <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }}><ChevronDown /></span>}
+                              </div>
+                            ) : showUSCADropdown ? (
+                              <div style={{ position: 'relative' }}>
                                 <select style={{ ...inputStyle(fieldState('state')), paddingRight: 40 }} value={form.state}
                                   onChange={(e) => { setForm((f) => ({ ...f, state: e.target.value })); setTouched((t) => ({ ...t, state: true })); }} onBlur={() => handleBlur('state')}>
-                                  <option value="">Select state…</option>
-                                  {IN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                                  <option value="">Select…</option>
+                                  {stateOptions.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
                                 </select>
-                              )}
-                              {pinVerified
-                                ? <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>
-                                : <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }}><ChevronDown /></span>}
-                            </div>
-                          ) : showUSCADropdown ? (
-                            <div style={{ position: 'relative' }}>
-                              <select style={{ ...inputStyle(fieldState('state')), paddingRight: 40 }} value={form.state}
-                                onChange={(e) => { setForm((f) => ({ ...f, state: e.target.value })); setTouched((t) => ({ ...t, state: true })); }} onBlur={() => handleBlur('state')}>
-                                <option value="">Select…</option>
-                                {stateOptions.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-                              </select>
-                              <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }}><ChevronDown /></span>
-                            </div>
-                          ) : (
-                            <input style={inputStyle(fieldState('state'))} placeholder="State / Region" value={form.state}
-                              onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} onBlur={() => handleBlur('state')} autoComplete="address-level1" />
-                          )}
-                          <FieldError msg={errors.state} />
-                        </div>
-                      </div>
-
-                      {/* Postal code non-India */}
-                      {!isIndia && (
-                        <div className="field-wrap" style={{ animationDelay: '0.19s' }}>
-                          <label style={labelStyle}>
-                            Postal Code <span style={{ color: '#6366f1' }}>*</span>
-                            {POSTAL_PATTERNS[form.country] && <span style={{ color: '#94a3b8', marginLeft: 6, fontSize: 11, fontWeight: 400 }}>({POSTAL_PATTERNS[form.country].hint})</span>}
-                          </label>
-                          <div style={{ position: 'relative' }}>
-                            <input style={inputStyle(fieldState('postalCode'))} placeholder={POSTAL_PATTERNS[form.country]?.hint || 'Postal code'} value={form.postalCode}
-                              onChange={(e) => handlePostalChange(e.target.value)} onBlur={() => handleBlur('postalCode')} autoComplete="postal-code" />
-                            {fieldState('postalCode') === 'valid' && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
+                                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#94a3b8' }}><ChevronDown /></span>
+                              </div>
+                            ) : (
+                              <input style={inputStyle(fieldState('state'))} placeholder="State / Region" value={form.state}
+                                onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} onBlur={() => handleBlur('state')} autoComplete="address-level1" />
+                            )}
+                            <FieldError msg={errors.state} />
                           </div>
-                          <FieldError msg={errors.postalCode} />
                         </div>
-                      )}
 
-                      {/* Phone */}
-                      <div className="field-wrap" style={{ animationDelay: '0.21s' }}>
-                        <label style={labelStyle}>Phone Number <span style={{ color: '#6366f1' }}>*</span></label>
-                        <div style={{
-                          display: 'flex', borderRadius: 10, overflow: 'hidden',
-                          border: errors.phone ? '1.5px solid #fca5a5' : (touched.phone && !errors.phone && form.phone) ? '1.5px solid #86efac' : '1.5px solid #e2e8f0',
-                          boxShadow: errors.phone ? '0 0 0 3px rgba(239,68,68,0.06)' : (touched.phone && !errors.phone && form.phone) ? '0 0 0 3px rgba(34,197,94,0.08)' : 'none',
-                          transition: 'all 0.18s',
-                        }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: '#f8fafc', color: '#374151', fontSize: 13, fontWeight: 600, borderRight: '1.5px solid #e2e8f0', whiteSpace: 'nowrap', minWidth: 52 }}>
-                            {form.country === 'IN' ? '+91' : form.country === 'US' || form.country === 'CA' ? '+1' : form.country === 'GB' ? '+44' : form.country === 'AU' ? '+61' : form.country === 'AE' ? '+971' : '+'}
-                          </span>
-                          <input style={{ flex: 1, border: 'none', padding: '11px 14px', fontSize: 13.5, fontFamily: "'Poppins', sans-serif", outline: 'none', background: '#fff', color: '#1e293b' }}
-                            type="tel" placeholder={isIndia ? '98765 43210' : '(555) 123-4567'}
-                            value={form.phone ? formatPhone(form.phone, form.country) : ''}
-                            onChange={(e) => handlePhoneChange(e.target.value)} onBlur={() => handleBlur('phone')} autoComplete="tel" inputMode="numeric" />
-                          {touched.phone && !errors.phone && form.phone && <span style={{ display: 'flex', alignItems: 'center', paddingRight: 12 }}><CheckCircle /></span>}
+                        {/* Postal code non-India */}
+                        {!isIndia && (
+                          <div className="field-wrap" style={{ animationDelay: '0.19s' }}>
+                            <label style={labelStyle}>
+                              Postal Code <span style={{ color: '#6366f1' }}>*</span>
+                              {POSTAL_PATTERNS[form.country] && <span style={{ color: '#94a3b8', marginLeft: 6, fontSize: 11, fontWeight: 400 }}>({POSTAL_PATTERNS[form.country].hint})</span>}
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                              <input style={inputStyle(fieldState('postalCode'))} placeholder={POSTAL_PATTERNS[form.country]?.hint || 'Postal code'} value={form.postalCode}
+                                onChange={(e) => handlePostalChange(e.target.value)} onBlur={() => handleBlur('postalCode')} autoComplete="postal-code" />
+                              {fieldState('postalCode') === 'valid' && <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)' }}><CheckCircle /></span>}
+                            </div>
+                            <FieldError msg={errors.postalCode} />
+                          </div>
+                        )}
+
+                        {/* Phone */}
+                        <div className="field-wrap" style={{ animationDelay: '0.21s' }}>
+                          <label style={labelStyle}>Phone Number <span style={{ color: '#6366f1' }}>*</span></label>
+                          <div style={{
+                            display: 'flex', borderRadius: 10, overflow: 'hidden',
+                            border: errors.phone ? '1.5px solid #fca5a5' : (touched.phone && !errors.phone && form.phone) ? '1.5px solid #86efac' : '1.5px solid #e2e8f0',
+                            boxShadow: errors.phone ? '0 0 0 3px rgba(239,68,68,0.06)' : (touched.phone && !errors.phone && form.phone) ? '0 0 0 3px rgba(34,197,94,0.08)' : 'none',
+                            transition: 'all 0.18s',
+                          }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', padding: '0 12px', background: '#f8fafc', color: '#374151', fontSize: 13, fontWeight: 600, borderRight: '1.5px solid #e2e8f0', whiteSpace: 'nowrap', minWidth: 52 }}>
+                              {form.country === 'IN' ? '+91' : form.country === 'US' || form.country === 'CA' ? '+1' : form.country === 'GB' ? '+44' : form.country === 'AU' ? '+61' : form.country === 'AE' ? '+971' : '+'}
+                            </span>
+                            <input style={{ flex: 1, border: 'none', padding: '11px 14px', fontSize: 13.5, fontFamily: "'Poppins', sans-serif", outline: 'none', background: '#fff', color: '#1e293b' }}
+                              type="tel" placeholder={isIndia ? '98765 43210' : '(555) 123-4567'}
+                              value={form.phone ? formatPhone(form.phone, form.country) : ''}
+                              onChange={(e) => handlePhoneChange(e.target.value)} onBlur={() => handleBlur('phone')} autoComplete="tel" inputMode="numeric" />
+                            {touched.phone && !errors.phone && form.phone && <span style={{ display: 'flex', alignItems: 'center', paddingRight: 12 }}><CheckCircle /></span>}
+                          </div>
+                          <FieldError msg={errors.phone} />
                         </div>
-                        <FieldError msg={errors.phone} />
+
+                        {Object.keys(errors).length > 0 && Object.keys(touched).length > 3 && (
+                          <div style={{ padding: '12px 16px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12.5, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
+                            <AlertCircle /> Please fix {Object.keys(errors).length} error{Object.keys(errors).length > 1 ? 's' : ''} before continuing
+                          </div>
+                        )}
+
+                        <button className="submit-btn" type="submit" disabled={loading || pinLoading} style={{
+                          width: '100%', padding: '14px 24px', marginTop: 4,
+                          background: loading || pinLoading ? '#e2e8f0' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                          color: loading || pinLoading ? '#94a3b8' : '#fff',
+                          border: 'none', borderRadius: 12, cursor: loading || pinLoading ? 'not-allowed' : 'pointer',
+                          fontSize: 14, fontWeight: 600, fontFamily: "'Poppins', sans-serif", letterSpacing: '0.01em',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                        }}>
+                          {loading ? <><Spinner /> Processing…</> : <>Choose Shipping Method <ArrowRight /></>}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* ── STEP 2: SHIPPING RATE SELECTOR ── */}
+                  {step === 'rates' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      {/* Address summary */}
+                      <div style={{ padding: '14px 16px', borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', marginBottom: 2 }}>{form.fullName}</p>
+                          <p style={{ fontSize: 11.5, color: '#64748b' }}>{form.addressLine1}, {form.city}, {form.state} {form.postalCode}</p>
+                        </div>
+                        <button onClick={() => setStep('shipping')} style={{ fontSize: 12, color: '#6366f1', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Edit
+                        </button>
                       </div>
 
-                      {Object.keys(errors).length > 0 && Object.keys(touched).length > 3 && (
-                        <div style={{ padding: '12px 16px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12.5, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
-                          <AlertCircle /> Please fix {Object.keys(errors).length} error{Object.keys(errors).length > 1 ? 's' : ''} before continuing
+                      <ShippingRateSelector
+                        origin={STORE_ORIGIN}
+                        destination={shippingDestination}
+                        package={DEFAULT_PACKAGE}
+                        onSelect={setSelectedShipping}
+                        selectedServiceCode={selectedShipping ? `${selectedShipping.carrier}-${selectedShipping.service}` : undefined}
+                      />
+
+                      {apiError && (
+                        <div style={{ padding: '12px 16px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12.5, color: '#dc2626', fontWeight: 500 }}>
+                          {apiError}
                         </div>
                       )}
 
-                      <button className="submit-btn" type="submit" disabled={loading || pinLoading} style={{
-                        width: '100%', padding: '14px 24px', marginTop: 4,
-                        background: loading || pinLoading ? '#e2e8f0' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                        color: loading || pinLoading ? '#94a3b8' : '#fff',
-                        border: 'none', borderRadius: 12, cursor: loading || pinLoading ? 'not-allowed' : 'pointer',
+                      <button className="submit-btn" onClick={handleRateConfirm} disabled={!selectedShipping || loading} style={{
+                        width: '100%', padding: '14px 24px',
+                        background: !selectedShipping || loading ? '#e2e8f0' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                        color: !selectedShipping || loading ? '#94a3b8' : '#fff',
+                        border: 'none', borderRadius: 12, cursor: !selectedShipping || loading ? 'not-allowed' : 'pointer',
                         fontSize: 14, fontWeight: 600, fontFamily: "'Poppins', sans-serif", letterSpacing: '0.01em',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                       }}>
-                        {loading ? <><Spinner /> Processing…</> : <>Choose Shipping Method <ArrowRight /></>}
+                        {loading ? <><Spinner /> Creating order…</> : <>Continue to Payment <ArrowRight /></>}
+                      </button>
+
+                      <button className="back-btn" onClick={() => setStep('shipping')} style={{ width: '100%', padding: '12px 24px', background: '#f8fafc', color: '#64748b', border: '1.5px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <ArrowLeft /> Back to Address
                       </button>
                     </div>
-                  </form>
-                )}
+                  )}
 
-                {/* ── STEP 2: SHIPPING RATE SELECTOR ── */}
-                {step === 'rates' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                    {/* Address summary */}
-                    <div style={{ padding: '14px 16px', borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', marginBottom: 2 }}>{form.fullName}</p>
-                        <p style={{ fontSize: 11.5, color: '#64748b' }}>{form.addressLine1}, {form.city}, {form.state} {form.postalCode}</p>
-                      </div>
-                      <button onClick={() => setStep('shipping')} style={{ fontSize: 12, color: '#6366f1', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                        Edit
-                      </button>
-                    </div>
-
-                    {/* Rate selector */}
-                    <ShippingRateSelector
-                      origin={STORE_ORIGIN}
-                      destination={shippingDestination}
-                      package={DEFAULT_PACKAGE}
-                      onSelect={setSelectedShipping}
-                      selectedServiceCode={selectedShipping ? `${selectedShipping.carrier}-${selectedShipping.service}` : undefined}
-                    />
-
-                    {apiError && (
-                      <div style={{ padding: '12px 16px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12.5, color: '#dc2626', fontWeight: 500 }}>
-                        {apiError}
-                      </div>
-                    )}
-
-                    <button className="submit-btn" onClick={handleRateConfirm} disabled={!selectedShipping || loading} style={{
-                      width: '100%', padding: '14px 24px',
-                      background: !selectedShipping || loading ? '#e2e8f0' : 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-                      color: !selectedShipping || loading ? '#94a3b8' : '#fff',
-                      border: 'none', borderRadius: 12, cursor: !selectedShipping || loading ? 'not-allowed' : 'pointer',
-                      fontSize: 14, fontWeight: 600, fontFamily: "'Poppins', sans-serif", letterSpacing: '0.01em',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                    }}>
-                      {loading ? <><Spinner /> Creating order…</> : <>Continue to Payment <ArrowRight /></>}
-                    </button>
-
-                    <button className="back-btn" onClick={() => setStep('shipping')} style={{ width: '100%', padding: '12px 24px', background: '#f8fafc', color: '#64748b', border: '1.5px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                      <ArrowLeft /> Back to Address
-                    </button>
-                  </div>
-                )}
-
-                {/* ── STEP 3: PAYMENT ── */}
-                {step === 'payment' && orderId && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                    {/* Shipping summary */}
-                    <div style={{ borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0', padding: '16px 18px' }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Truck /> Delivering to
-                      </p>
-                      <p style={{ fontWeight: 600, fontSize: 13.5, color: '#0f172a', marginBottom: 3 }}>{form.fullName}</p>
-                      <p style={{ fontSize: 12.5, color: '#64748b', lineHeight: 1.6 }}>
-                        {form.addressLine1}{form.addressLine2 ? `, ${form.addressLine2}` : ''}<br />
-                        {form.city}, {form.state} {form.postalCode}<br />
-                        {COUNTRIES.find((c) => c.code === form.country)?.name}
-                      </p>
-                      {selectedShipping && (
-                        <p style={{ fontSize: 12, color: '#6366f1', fontWeight: 600, marginTop: 8 }}>
-                          {selectedShipping.carrier} · {selectedShipping.service} — ${selectedShipping.rate.toFixed(2)}
-                          {selectedShipping.estimatedDelivery && ` · ${selectedShipping.estimatedDelivery}`}
+                  {/* ── STEP 3: PAYMENT ── */}
+                  {step === 'payment' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                      {/* Shipping summary */}
+                      <div style={{ borderRadius: 12, background: '#f8fafc', border: '1px solid #e2e8f0', padding: '16px 18px' }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Truck /> Delivering to
                         </p>
-                      )}
-                    </div>
-
-                    {apiError && (
-                      <div style={{ padding: '12px 16px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12.5, color: '#dc2626', fontWeight: 500 }}>
-                        {apiError}
+                        <p style={{ fontWeight: 600, fontSize: 13.5, color: '#0f172a', marginBottom: 3 }}>{form.fullName}</p>
+                        <p style={{ fontSize: 12.5, color: '#64748b', lineHeight: 1.6 }}>
+                          {form.addressLine1}{form.addressLine2 ? `, ${form.addressLine2}` : ''}<br />
+                          {form.city}, {form.state} {form.postalCode}<br />
+                          {COUNTRIES.find((c) => c.code === form.country)?.name}
+                        </p>
+                        {selectedShipping && (
+                          <p style={{ fontSize: 12, color: '#6366f1', fontWeight: 600, marginTop: 8 }}>
+                            {selectedShipping.carrier} · {selectedShipping.service} — ${selectedShipping.rate.toFixed(2)}
+                            {selectedShipping.estimatedDelivery && ` · ${selectedShipping.estimatedDelivery}`}
+                          </p>
+                        )}
                       </div>
-                    )}
 
-                    <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                      <PayPalScriptProvider options={{ clientId: process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID!, 'client-id': process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID!, currency: 'USD' }}>
-                        <PayPalButtons createOrder={createPayPalOrder} onApprove={onPayPalApprove} onError={(err) => setApiError(String(err))} style={{ layout: 'vertical', color: 'blue', shape: 'rect', label: 'pay' }} />
-                      </PayPalScriptProvider>
+                      {apiError && (
+                        <div style={{ padding: '12px 16px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12.5, color: '#dc2626', fontWeight: 500 }}>
+                          {apiError}
+                        </div>
+                      )}
+
+                      {/* ── PayPal buttons ────────────────────────────────────────────────────
+                          PayPalScriptProvider lives at the top of the tree so it's never
+                          remounted. Here we just render the buttons once orderId is ready.
+                          While orderId is still null (the brief moment between setOrderId
+                          and the re-render), we show a spinner instead.            ── */}
+                      <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0', minHeight: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {!orderId ? (
+                          <div style={{ padding: 24, color: '#6366f1' }}><Spinner /></div>
+                        ) : (
+                          <div style={{ width: '100%', padding: '8px' }}>
+                            <PayPalButtons
+                              createOrder={createPayPalOrder}
+                              onApprove={onPayPalApprove}
+                              onError={(err) => setApiError(String(err))}
+                              style={{ layout: 'vertical', color: 'blue', shape: 'rect', label: 'pay' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <button className="back-btn" onClick={() => setStep('rates')} style={{ width: '100%', padding: '12px 24px', background: '#f8fafc', color: '#64748b', border: '1.5px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.18s' }}>
+                        <ArrowLeft /> Back to Shipping
+                      </button>
                     </div>
+                  )}
 
-                    <button className="back-btn" onClick={() => setStep('rates')} style={{ width: '100%', padding: '12px 24px', background: '#f8fafc', color: '#64748b', border: '1.5px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', fontSize: 13, fontWeight: 500, fontFamily: "'Poppins', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.18s' }}>
-                      <ArrowLeft /> Back to Shipping
-                    </button>
-                  </div>
-                )}
+                </div>
+              </div>
 
+              <div style={{ textAlign: 'center', marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
+                <Lock /> 256-bit SSL encrypted · Your information is always secure
               </div>
             </div>
 
-            <div style={{ textAlign: 'center', marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: '#94a3b8', fontSize: 12 }}>
-              <Lock /> 256-bit SSL encrypted · Your information is always secure
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN */}
-          <div style={{ animation: 'fadeUp 0.4s ease 0.15s both' }}>
-            <TrustBadges />
-            <OrderSummary total={total} shippingRate={selectedShipping} />
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 20, marginBottom: 20 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 14, letterSpacing: '-0.01em' }}>What to expect</p>
-              {[
-                { step: '1', title: 'Order Confirmed', desc: 'Instant email confirmation', color: '#6366f1' },
-                { step: '2', title: 'Packed & Dispatched', desc: 'Within 1–2 business days', color: '#8b5cf6' },
-                { step: '3', title: 'Out for Delivery', desc: '3–7 days estimated delivery', color: '#a78bfa' },
-              ].map((item, i) => (
-                <div key={i} style={{ display: 'flex', gap: 12, marginBottom: i < 2 ? 16 : 0, position: 'relative' }}>
-                  {i < 2 && <div style={{ position: 'absolute', left: 15, top: 28, width: 1, height: 24, background: '#e2e8f0' }} />}
-                  <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, background: item.color + '15', border: `1.5px solid ${item.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: item.color }}>
-                    {item.step}
+            {/* RIGHT COLUMN */}
+            <div style={{ animation: 'fadeUp 0.4s ease 0.15s both' }}>
+              <TrustBadges />
+              <OrderSummary total={total} shippingRate={selectedShipping} />
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 20, marginBottom: 20 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 14, letterSpacing: '-0.01em' }}>What to expect</p>
+                {[
+                  { step: '1', title: 'Order Confirmed', desc: 'Instant email confirmation', color: '#6366f1' },
+                  { step: '2', title: 'Packed & Dispatched', desc: 'Within 1–2 business days', color: '#8b5cf6' },
+                  { step: '3', title: 'Out for Delivery', desc: '3–7 days estimated delivery', color: '#a78bfa' },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 12, marginBottom: i < 2 ? 16 : 0, position: 'relative' }}>
+                    {i < 2 && <div style={{ position: 'absolute', left: 15, top: 28, width: 1, height: 24, background: '#e2e8f0' }} />}
+                    <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, background: item.color + '15', border: `1.5px solid ${item.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: item.color }}>
+                      {item.step}
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1e293b', marginBottom: 2 }}>{item.title}</p>
+                      <p style={{ fontSize: 11.5, color: '#94a3b8' }}>{item.desc}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1e293b', marginBottom: 2 }}>{item.title}</p>
-                    <p style={{ fontSize: 11.5, color: '#94a3b8' }}>{item.desc}</p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <div style={{ background: '#fafafa', border: '1px solid #e2e8f0', borderRadius: 16, padding: '16px 20px', textAlign: 'center' }}>
+                <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1e293b', marginBottom: 4 }}>Need help?</p>
+                <p style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 10 }}>Our support team is available 24/7</p>
+                <a href="mailto:support@alphaimports.com" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#6366f1', textDecoration: 'none', padding: '7px 16px', background: '#eef2ff', borderRadius: 8 }}>
+                  support@alphaimports.com
+                </a>
+              </div>
             </div>
-            <div style={{ background: '#fafafa', border: '1px solid #e2e8f0', borderRadius: 16, padding: '16px 20px', textAlign: 'center' }}>
-              <p style={{ fontSize: 12.5, fontWeight: 600, color: '#1e293b', marginBottom: 4 }}>Need help?</p>
-              <p style={{ fontSize: 11.5, color: '#94a3b8', marginBottom: 10 }}>Our support team is available 24/7</p>
-              <a href="mailto:support@alphaimports.com" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#6366f1', textDecoration: 'none', padding: '7px 16px', background: '#eef2ff', borderRadius: 8 }}>
-                support@alphaimports.com
-              </a>
-            </div>
-          </div>
 
+          </div>
         </div>
-      </div>
-    </>
+      </>
+    </PayPalScriptProvider>
   );
 }
