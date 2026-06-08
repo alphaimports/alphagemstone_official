@@ -6,4 +6,5 @@ import '@/models/Product';
 import '@/models/User';
 import '@/models/Cart';
 import '@/models/Order';
-import '@/models/HeroSlide'
+import '@/models/HeroSlide';
+import '@/models/Otp';

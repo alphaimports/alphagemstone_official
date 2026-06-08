@@ -1,29 +1,29 @@
-'use client';
-import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
+"use client";
+import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
     try {
       await login(form.email, form.password);
-      const redirect = searchParams.get('redirect') || '/products';
+      const redirect = searchParams.get("redirect") || "/products";
       router.push(redirect);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }
@@ -581,7 +581,6 @@ export default function LoginPage() {
       `}</style>
 
       <div className="auth-root">
-
         {/* ══════════════════════════════
             LEFT PANEL
         ══════════════════════════════ */}
@@ -648,19 +647,68 @@ export default function LoginPage() {
               />
               {/* Sparkle center */}
               <circle cx="130" cy="96" r="2.5" fill="rgba(196,181,253,0.5)" />
-              <circle cx="130" cy="96" r="6" fill="none" stroke="rgba(196,181,253,0.15)" strokeWidth="0.5" />
+              <circle
+                cx="130"
+                cy="96"
+                r="6"
+                fill="none"
+                stroke="rgba(196,181,253,0.15)"
+                strokeWidth="0.5"
+              />
               {/* Corner sparkles */}
               <g opacity="0.5">
-                <line x1="130" y1="5" x2="130" y2="1" stroke="rgba(196,181,253,0.6)" strokeWidth="1"/>
-                <line x1="128" y1="3" x2="132" y2="3" stroke="rgba(196,181,253,0.6)" strokeWidth="1"/>
+                <line
+                  x1="130"
+                  y1="5"
+                  x2="130"
+                  y2="1"
+                  stroke="rgba(196,181,253,0.6)"
+                  strokeWidth="1"
+                />
+                <line
+                  x1="128"
+                  y1="3"
+                  x2="132"
+                  y2="3"
+                  stroke="rgba(196,181,253,0.6)"
+                  strokeWidth="1"
+                />
               </g>
               <g opacity="0.35" transform="translate(222,68)">
-                <line x1="0" y1="-5" x2="0" y2="-1" stroke="rgba(165,180,252,0.6)" strokeWidth="1"/>
-                <line x1="-2" y1="-3" x2="2" y2="-3" stroke="rgba(165,180,252,0.6)" strokeWidth="1"/>
+                <line
+                  x1="0"
+                  y1="-5"
+                  x2="0"
+                  y2="-1"
+                  stroke="rgba(165,180,252,0.6)"
+                  strokeWidth="1"
+                />
+                <line
+                  x1="-2"
+                  y1="-3"
+                  x2="2"
+                  y2="-3"
+                  stroke="rgba(165,180,252,0.6)"
+                  strokeWidth="1"
+                />
               </g>
               <g opacity="0.35" transform="translate(38,192)">
-                <line x1="0" y1="-4" x2="0" y2="-1" stroke="rgba(165,180,252,0.5)" strokeWidth="1"/>
-                <line x1="-1.5" y1="-2.5" x2="1.5" y2="-2.5" stroke="rgba(165,180,252,0.5)" strokeWidth="1"/>
+                <line
+                  x1="0"
+                  y1="-4"
+                  x2="0"
+                  y2="-1"
+                  stroke="rgba(165,180,252,0.5)"
+                  strokeWidth="1"
+                />
+                <line
+                  x1="-1.5"
+                  y1="-2.5"
+                  x2="1.5"
+                  y2="-2.5"
+                  stroke="rgba(165,180,252,0.5)"
+                  strokeWidth="1"
+                />
               </g>
             </svg>
           </div>
@@ -669,8 +717,19 @@ export default function LoginPage() {
           <div className="auth-left-logo">
             <div className="auth-left-logo-gem">
               <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
-                <polygon points="16,3 29,12 16,29 3,12" stroke="#ffffff" strokeWidth="1.6" fill="none"/>
-                <polygon points="16,3 29,12 16,15 3,12" stroke="rgba(196,181,253,0.8)" strokeWidth="1.2" fill="none" opacity="0.7"/>
+                <polygon
+                  points="16,3 29,12 16,29 3,12"
+                  stroke="#ffffff"
+                  strokeWidth="1.6"
+                  fill="none"
+                />
+                <polygon
+                  points="16,3 29,12 16,15 3,12"
+                  stroke="rgba(196,181,253,0.8)"
+                  strokeWidth="1.2"
+                  fill="none"
+                  opacity="0.7"
+                />
               </svg>
             </div>
             <div>
@@ -684,14 +743,15 @@ export default function LoginPage() {
 
           {/* Bottom content */}
           <div className="auth-left-bottom">
-            <div className="auth-left-eyebrow">
-              Est. Fine Diamonds
-            </div>
+            <div className="auth-left-eyebrow">Est. Fine Diamonds</div>
             <h2 className="auth-left-headline">
-              Rare diamonds.<br /><em>Singular beauty.</em>
+              Rare diamonds.
+              <br />
+              <em>Singular beauty.</em>
             </h2>
             <p className="auth-left-sub">
-              Access our curated collection of certified fancy-colour and white diamonds, sourced from the world's finest cutting centres.
+              Access our curated collection of certified fancy-colour and white
+              diamonds, sourced from the world's finest cutting centres.
             </p>
             <div className="auth-stat-cards">
               <div className="auth-stat-card">
@@ -715,20 +775,32 @@ export default function LoginPage() {
         ══════════════════════════════ */}
         <div className="auth-right">
           <div className="auth-form-shell">
-
             {/* Mobile brand */}
             <div className="auth-mobile-brand">
               <div className="auth-mobile-gem">
                 <svg width="14" height="14" viewBox="0 0 32 32" fill="none">
-                  <polygon points="16,3 29,12 16,29 3,12" stroke="#ffffff" strokeWidth="1.8" fill="none"/>
-                  <polygon points="16,3 29,12 16,15 3,12" stroke="rgba(196,181,253,0.8)" strokeWidth="1.2" fill="none" opacity="0.7"/>
+                  <polygon
+                    points="16,3 29,12 16,29 3,12"
+                    stroke="#ffffff"
+                    strokeWidth="1.8"
+                    fill="none"
+                  />
+                  <polygon
+                    points="16,3 29,12 16,15 3,12"
+                    stroke="rgba(196,181,253,0.8)"
+                    strokeWidth="1.2"
+                    fill="none"
+                    opacity="0.7"
+                  />
                 </svg>
               </div>
               <span className="auth-mobile-brand-text">Alpha Imports</span>
             </div>
 
             <h1 className="auth-heading">Welcome back</h1>
-            <p className="auth-subheading">Sign in to your account to continue</p>
+            <p className="auth-subheading">
+              Sign in to your account to continue
+            </p>
 
             <form onSubmit={handleSubmit}>
               {/* Email */}
@@ -740,9 +812,11 @@ export default function LoginPage() {
                     className="auth-input"
                     placeholder="you@example.com"
                     value={form.email}
-                    onFocus={() => setFocused('email')}
+                    onFocus={() => setFocused("email")}
                     onBlur={() => setFocused(null)}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, email: e.target.value })
+                    }
                     required
                   />
                   <div className="auth-input-line" />
@@ -754,13 +828,15 @@ export default function LoginPage() {
                 <label className="auth-label">Password</label>
                 <div className="auth-input-wrap">
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     className="auth-input has-eye"
                     placeholder="••••••••"
                     value={form.password}
-                    onFocus={() => setFocused('password')}
+                    onFocus={() => setFocused("password")}
                     onBlur={() => setFocused(null)}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, password: e.target.value })
+                    }
                     required
                   />
                   <div className="auth-input-line" />
@@ -768,31 +844,100 @@ export default function LoginPage() {
                     type="button"
                     className="auth-eye-btn"
                     onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                     tabIndex={-1}
                   >
                     {showPassword ? (
                       /* Eye-off */
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-                        <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M1 1l22 22" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M10.73 10.73A2 2 0 0013.27 13.27" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                      <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <path
+                          d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19M1 1l22 22"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M10.73 10.73A2 2 0 0013.27 13.27"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
                       </svg>
                     ) : (
                       /* Eye */
-                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6"/>
+                      <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <path
+                          d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="3"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                        />
                       </svg>
                     )}
                   </button>
                 </div>
               </div>
-
+              <div
+                style={{ textAlign: "right", marginTop: -14, marginBottom: 16 }}
+              >
+                <Link
+                  href="/forgot-password"
+                  style={{
+                    fontFamily: "'Barlow Condensed',sans-serif",
+                    fontSize: 11,
+                    fontWeight: 500,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase" as const,
+                    color: "#0f3460",
+                    textDecoration: "none",
+                  }}
+                >
+                  Forgot password?
+                </Link>
+              </div>
               {error && (
                 <div className="auth-error">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
-                    <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4"/>
-                    <path d="M8 5v3.5M8 11v.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    style={{ flexShrink: 0, marginTop: 1 }}
+                  >
+                    <circle
+                      cx="8"
+                      cy="8"
+                      r="7"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                    />
+                    <path
+                      d="M8 5v3.5M8 11v.5"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                    />
                   </svg>
                   {error}
                 </div>
@@ -801,7 +946,7 @@ export default function LoginPage() {
               <button type="submit" disabled={loading} className="auth-btn">
                 <span className="auth-btn-inner">
                   {loading && <span className="auth-spinner" />}
-                  {loading ? 'Signing in…' : 'Sign in'}
+                  {loading ? "Signing in…" : "Sign in"}
                 </span>
               </button>
             </form>
@@ -813,10 +958,8 @@ export default function LoginPage() {
             </div>
 
             <div className="auth-footer">
-              Don&apos;t have an account?{' '}
-              <Link href="/signup">Create one</Link>
+              Don&apos;t have an account? <Link href="/signup">Create one</Link>
             </div>
-
           </div>
         </div>
       </div>
