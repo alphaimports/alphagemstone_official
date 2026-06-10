@@ -3,13 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 
 interface JewelryModalProps {
-  /** Delay in ms before the modal appears on mount (default: 2500) */
   delay?: number;
-  /** Called when the user submits a valid email */
   onSubmit?: (email: string) => void;
-  /** Called when the user dismisses the modal */
   onDismiss?: () => void;
-  /** Storage key used to remember dismissal across sessions */
   storageKey?: string;
 }
 
@@ -23,18 +19,16 @@ export default function JewelryModal({
   const [closing, setClosing] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [email, setEmail] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  /* ── show modal after delay (respect previous dismissal) ── */
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (localStorage.getItem(storageKey)) return;
-
     const timer = setTimeout(() => setVisible(true), delay);
     return () => clearTimeout(timer);
   }, [delay, storageKey]);
 
-  /* ── close on Escape ── */
   useEffect(() => {
     if (!visible) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -44,12 +38,9 @@ export default function JewelryModal({
     return () => window.removeEventListener("keydown", handleKey);
   }, [visible]);
 
-  /* ── prevent body scroll while modal is open ── */
   useEffect(() => {
     document.body.style.overflow = visible ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
+    return () => { document.body.style.overflow = ""; };
   }, [visible]);
 
   const closeModal = useCallback(() => {
@@ -66,23 +57,39 @@ export default function JewelryModal({
     if (e.target === e.currentTarget) closeModal();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-    if (!valid) {
-      setError(true);
+    const trimmed = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError("Please enter a valid email address.");
       return;
     }
-    setError(false);
-    setSubmitted(true);
-    localStorage.setItem(storageKey, "true");
-    onSubmit?.(email.trim());
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/coupons/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json?.message ?? "Something went wrong. Please try again.");
+        return;
+      }
+      setSubmitted(true);
+      localStorage.setItem(storageKey, "true");
+      onSubmit?.(trimmed);
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!visible) return null;
 
   return (
-    /* ── backdrop ── */
     <div
       role="dialog"
       aria-modal="true"
@@ -95,7 +102,6 @@ export default function JewelryModal({
         closing ? "opacity-0" : "opacity-100",
       ].join(" ")}
     >
-      {/* ── card ── */}
       <div
         className={[
           "relative w-full max-w-[420px] overflow-hidden rounded-sm",
@@ -121,25 +127,14 @@ export default function JewelryModal({
           aria-label="Close offer"
           className="absolute right-4 top-4 text-[#8099b5] hover:text-[#0f3460] transition-colors"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
 
-        {/* ── body ── */}
         <div className="px-8 pb-6 pt-7 text-center font-[family-name:var(--font-jost,sans-serif)]">
           {!submitted ? (
-            /* — form view — */
             <>
               <p className="mb-3 text-[10px] font-normal uppercase tracking-[0.2em] text-[#0f3460]">
                 Welcome
@@ -155,9 +150,13 @@ export default function JewelryModal({
                 your first piece
               </h2>
 
-              <p className="mb-6 text-[13px] font-light leading-relaxed text-[#4a6080]">
+              <p className="mb-1 text-[13px] font-light leading-relaxed text-[#4a6080]">
                 Join our community for exclusive access to fine jewelry crafted
                 in the USA.
+              </p>
+
+              <p className="mb-5 text-[11px] font-light text-[#8099b5]">
+                Min. $200 purchase · Valid 30 days · One use only
               </p>
 
               <form onSubmit={handleSubmit} noValidate>
@@ -172,32 +171,43 @@ export default function JewelryModal({
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
-                      if (error) setError(false);
+                      if (error) setError(null);
                     }}
                     placeholder="Your email address"
                     aria-label="Email address"
+                    disabled={loading}
                     className={[
                       "h-11 flex-1 bg-white px-3.5 text-[13px] font-light",
                       "text-[#0f3460] placeholder:text-[#8099b5]",
-                      "outline-none focus:outline-none",
+                      "outline-none focus:outline-none disabled:opacity-60",
                     ].join(" ")}
                   />
                   <button
                     type="submit"
+                    disabled={loading}
                     className={[
                       "h-11 shrink-0 bg-[#0f3460] px-4 text-[11px] font-medium",
                       "uppercase tracking-[0.12em] text-white",
                       "transition-colors hover:bg-[#0c2a4f] active:bg-[#091f3a]",
+                      "disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5",
                     ].join(" ")}
                   >
-                    Unlock $10 Off
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Sending…
+                      </>
+                    ) : (
+                      "Unlock $10 Off"
+                    )}
                   </button>
                 </div>
 
                 {error && (
-                  <p className="mb-2 text-[11px] text-red-500">
-                    Please enter a valid email address.
-                  </p>
+                  <p className="mb-2 text-[11px] text-red-500">{error}</p>
                 )}
 
                 <p className="mb-4 text-[11px] font-light text-[#8099b5]">
@@ -226,20 +236,9 @@ export default function JewelryModal({
               </div>
             </>
           ) : (
-            /* — success view — */
             <div className="py-4">
               <div className="mb-4 flex justify-center">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="42"
-                  height="42"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#0f3460"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
+                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#0f3460" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
                   <polyline points="8 12 11 15 16 9" />
                 </svg>
@@ -252,6 +251,9 @@ export default function JewelryModal({
               </h3>
               <p className="text-[13px] font-light leading-relaxed text-[#4a6080]">
                 Check your inbox — your $10 off code is on its way.
+              </p>
+              <p className="mt-2 text-[11px] text-[#8099b5]">
+                Valid for 30 days · Min. $200 purchase
               </p>
               <button
                 onClick={closeModal}

@@ -591,3 +591,73 @@ export function newsletterEmailHtml(data: NewsletterEmailData): string {
 
   return emailWrapper(body, data.subject);
 }
+// ─── Coupon Email ─────────────────────────────────────────────────────────────
+
+interface CouponEmailData {
+  email: string;
+  code: string;
+  expiresAt: Date;
+  discount: number;
+  minPurchase: number;
+}
+
+export function couponEmailHtml(data: CouponEmailData): string {
+  const expiryStr = new Date(data.expiresAt).toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric',
+  });
+
+  const discountAmt  = data.discount;
+  const minPurchase  = data.minPurchase;
+  const code         = data.code;
+  const siteUrl      = SITE_URL;
+  const supportEmail = SUPPORT_EMAIL;
+
+  const body =
+    '<tr>' +
+    '<td style="background-color:' + T.headerBg + ';padding:32px 48px 28px;">' +
+    '<p style="margin:0;font-family:' + T.sansStack + ';font-size:10px;font-weight:700;color:' + T.accentGold + ';letter-spacing:0.22em;text-transform:uppercase;">Alpha Imports</p>' +
+    '<h1 style="margin:10px 0 0;font-family:Georgia,serif;font-size:28px;font-weight:400;color:#F9F7F4;line-height:1.25;">Your $' + discountAmt + ' Off Coupon</h1>' +
+    '</td>' +
+    '</tr>' +
+    '<tr>' +
+    '<td class="email-pad" style="padding:44px 48px 36px;background-color:' + T.card + ';">' +
+    '<p style="margin:0 0 24px;font-family:' + T.sansStack + ';font-size:14px;color:' + T.textMuted + ';line-height:1.7;">' +
+    "Thank you for joining the Alpha Imports community. Here's your exclusive discount code — use it on your next order." +
+    '</p>' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">' +
+    '<tr>' +
+    '<td style="background-color:#0F3460;border-radius:4px;padding:24px 32px;text-align:center;">' +
+    '<p style="margin:0 0 6px;font-family:' + T.sansStack + ';font-size:10px;font-weight:700;color:#8099B5;letter-spacing:0.2em;text-transform:uppercase;">Your Coupon Code</p>' +
+    '<p style="margin:0;font-family:' + T.monoStack + ';font-size:30px;font-weight:700;color:#C9A96E;letter-spacing:0.18em;">' + code + '</p>' +
+    '</td>' +
+    '</tr>' +
+    '</table>' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 32px;">' +
+    '<tr>' +
+    '<td style="background-color:' + T.warnBg + ';border-left:3px solid ' + T.warnBdr + ';padding:16px 20px;">' +
+    '<p style="margin:0 0 8px;font-family:' + T.sansStack + ';font-size:11px;font-weight:700;color:' + T.textPrimary + ';letter-spacing:0.1em;text-transform:uppercase;">Terms &amp; Conditions</p>' +
+    '<ul style="margin:0;padding-left:18px;font-family:' + T.sansStack + ';font-size:12px;color:' + T.textMuted + ';line-height:1.9;">' +
+    '<li>$' + discountAmt + ' flat discount on qualifying orders</li>' +
+    '<li>Minimum purchase of $' + minPurchase + ' required (before shipping)</li>' +
+    '<li>Valid for one use only</li>' +
+    '<li>Expires on <strong>' + expiryStr + '</strong></li>' +
+    '</ul>' +
+    '</td>' +
+    '</tr>' +
+    '</table>' +
+    '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 32px;">' +
+    '<tr>' +
+    '<td style="background-color:#0F3460;border-radius:2px;">' +
+    '<a href="' + siteUrl + '/products" style="display:inline-block;padding:14px 36px;font-family:' + T.sansStack + ';font-size:12px;font-weight:600;color:#FFFFFF;text-decoration:none;letter-spacing:0.12em;text-transform:uppercase;">Shop Now</a>' +
+    '</td>' +
+    '</tr>' +
+    '</table>' +
+    '<p style="margin:0;font-family:' + T.sansStack + ';font-size:11px;color:' + T.textLight + ';text-align:center;line-height:1.8;">' +
+    'Questions? Reply to this email or contact us at ' +
+    '<a href="mailto:' + supportEmail + '" style="color:' + T.accentGold + ';text-decoration:none;">' + supportEmail + '</a>' +
+    '</p>' +
+    '</td>' +
+    '</tr>';
+
+  return emailWrapper(body, 'Your $' + discountAmt + ' off code: ' + code);
+}

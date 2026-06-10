@@ -257,9 +257,9 @@ function TrustBadges() {
   );
 }
 
-function OrderSummary({ total, shippingRate }: { total: number; shippingRate: ShippingRate | null }) {
+function OrderSummary({ total, shippingRate, couponDiscount = 0 }: { total: number; shippingRate: ShippingRate | null; couponDiscount?: number }) {
   const shipping = shippingRate?.rate ?? 0;
-  const grandTotal = total + shipping;
+  const grandTotal = Math.max(0, total + shipping - couponDiscount);
   return (
     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: 20, marginBottom: 28 }}>
       <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 14 }}>
@@ -278,6 +278,12 @@ function OrderSummary({ total, shippingRate }: { total: number; shippingRate: Sh
             {shippingRate ? (shipping === 0 ? 'FREE' : `$${shipping.toFixed(2)}`) : '—'}
           </span>
         </div>
+        {couponDiscount > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#22c55e' }}>Coupon Discount</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#22c55e' }}>−${couponDiscount.toFixed(2)}</span>
+          </div>
+        )}
         <div style={{ height: 1, background: '#e2e8f0', margin: '4px 0' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Total</span>
@@ -311,6 +317,11 @@ export default function CheckoutPage() {
   const [pinError, setPinError] = useState('');
   const [postOffices, setPostOffices] = useState<{ Name: string; District: string; State: string }[]>([]);
   const [pinVerified, setPinVerified] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponInput, setCouponInput] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponMsg, setCouponMsg] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
 
   useEffect(() => {
     apiFetch('/api/cart')
@@ -425,6 +436,7 @@ export default function CheckoutPage() {
           shippingRate: selectedShipping.rate,
           shippingEstimatedDays: selectedShipping.estimatedDays ?? null,
           shippingEstimatedDelivery: selectedShipping.estimatedDelivery ?? null,
+          ...(couponCode ? { couponCode } : {}),
         }),
       });
       // ── Set orderId first, then step — both are batched by React 18
@@ -888,7 +900,65 @@ export default function CheckoutPage() {
             {/* RIGHT COLUMN */}
             <div style={{ animation: 'fadeUp 0.4s ease 0.15s both' }}>
               <TrustBadges />
-              <OrderSummary total={total} shippingRate={selectedShipping} />
+
+              {/* ── Coupon Input ────────────────────────────────────────── */}
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 20, marginBottom: 16 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94a3b8', marginBottom: 12 }}>
+                  Coupon Code
+                </p>
+                {couponDiscount > 0 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#15803d' }}>✓ {couponCode} — $10 off applied!</span>
+                    <button
+                      onClick={() => { setCouponCode(''); setCouponInput(''); setCouponDiscount(0); setCouponMsg(''); }}
+                      style={{ fontSize: 11, color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        value={couponInput}
+                        onChange={(e) => { setCouponInput(e.target.value.toUpperCase()); setCouponMsg(''); }}
+                        placeholder="Enter code"
+                        style={{ flex: 1, border: '1px solid #e2e8f0', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontFamily: 'monospace', letterSpacing: '0.08em', outline: 'none' }}
+                      />
+                      <button
+                        disabled={couponLoading || !couponInput.trim()}
+                        onClick={async () => {
+                          if (!couponInput.trim()) return;
+                          setCouponLoading(true); setCouponMsg('');
+                          try {
+                            const res = await fetch('/api/coupons/validate', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ code: couponInput.trim(), subtotal: total }),
+                            });
+                            const json = await res.json();
+                            if (json?.data?.valid) {
+                              setCouponCode(couponInput.trim().toUpperCase());
+                              setCouponDiscount(json.data.discount);
+                              setCouponMsg('');
+                            } else {
+                              setCouponMsg(json?.data?.message ?? json?.message ?? 'Invalid code.');
+                            }
+                          } catch { setCouponMsg('Network error. Try again.'); }
+                          finally { setCouponLoading(false); }
+                        }}
+                        style={{ padding: '9px 16px', background: '#0f3460', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: couponLoading || !couponInput.trim() ? 0.6 : 1 }}
+                      >
+                        {couponLoading ? '…' : 'Apply'}
+                      </button>
+                    </div>
+                    {couponMsg && <p style={{ marginTop: 6, fontSize: 11.5, color: couponMsg.includes('off') ? '#15803d' : '#dc2626' }}>{couponMsg}</p>}
+                  </>
+                )}
+              </div>
+
+              <OrderSummary total={total} shippingRate={selectedShipping} couponDiscount={couponDiscount} />
               <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 20, marginBottom: 20 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 14, letterSpacing: '-0.01em' }}>What to expect</p>
                 {[

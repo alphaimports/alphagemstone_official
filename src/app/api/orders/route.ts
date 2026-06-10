@@ -19,6 +19,7 @@ const shippingSchema = z.object({
 const createOrderSchema = z.object({
   shippingAddress: shippingSchema,
   paymentMethod: z.enum(['paypal', 'cod']),
+  couponCode: z.string().optional(),
 });
 
 // POST /api/orders
@@ -35,7 +36,8 @@ export const POST = withAuth(async (req: AuthenticatedRequest) => {
     const order = await createOrderFromCart(
       req.user.userId,
       parsed.data.shippingAddress,
-      parsed.data.paymentMethod
+      parsed.data.paymentMethod,
+      parsed.data.couponCode
     );
 
     return successResponse(order, 201);

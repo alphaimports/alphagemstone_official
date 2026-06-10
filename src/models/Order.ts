@@ -59,6 +59,9 @@ export interface IOrder extends Document {
   trackingNumber?: string | null;
   trackingUrl?: string | null;
   shippedAt?: Date | null;
+  // ─── Coupon ───────────────────────────────────────────────────────────────
+  appliedCouponCode?: string | null;
+  couponDiscount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -146,6 +149,9 @@ const OrderSchema = new Schema<IOrder>(
     trackingNumber: { type: String, default: null, index: true },
     trackingUrl: { type: String, default: null },
     shippedAt: { type: Date, default: null },
+    // ─── Coupon ───────────────────────────────────────────────────────────────
+    appliedCouponCode: { type: String, default: null },
+    couponDiscount:    { type: Number, default: 0 },
   },
   { timestamps: true }
 );

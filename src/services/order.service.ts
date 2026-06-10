@@ -7,6 +7,7 @@ import { capturePayPalOrder, createPayPalOrder } from './paypal.service';
 import { createFedExShipment, trackFedExShipment } from './fedex.service';
 import { createUspsShipment } from './usps.service';
 import { createUpsShipment } from './ups.service';
+import { validateCoupon, redeemCoupon } from './coupon.service';
 import { Resend } from 'resend';
 import { orderConfirmationEmailHtml, orderShippedEmailHtml } from '@/lib/email-templates';
 
@@ -52,7 +53,8 @@ function estimateWeightLb(totalItems: number): number {
 export async function createOrderFromCart(
   userId: string,
   shippingAddress: IShippingAddress,
-  paymentMethod: 'paypal' | 'cod'
+  paymentMethod: 'paypal' | 'cod',
+  couponCode?: string
 ) {
   const cart = await Cart.findOne({ user: userId }).populate('items.product').lean() as ICart | null;
   if (!cart || cart.items.length === 0) throw new Error('Cart is empty');
@@ -75,6 +77,20 @@ export async function createOrderFromCart(
 
   const { subtotal, tax, shippingCost, total } = calculateCartTotals(items);
 
+  // ─── Apply coupon if provided ─────────────────────────────────────────────
+  let couponDiscount = 0;
+  let appliedCouponCode: string | null = null;
+
+  if (couponCode) {
+    const validation = await validateCoupon(couponCode, subtotal);
+    if (validation.valid) {
+      couponDiscount = validation.discount;
+      appliedCouponCode = couponCode.toUpperCase().trim();
+    }
+  }
+
+  const finalTotal = Math.max(0, total - couponDiscount);
+
   const order = new Order({
     user: userId,
     items,
@@ -82,13 +98,21 @@ export async function createOrderFromCart(
     subtotal,
     tax,
     shippingCost,
-    totalAmount: total,
+    totalAmount: finalTotal,
+    appliedCouponCode,
+    couponDiscount,
     paymentMethod,
     status: 'pending',
     paymentStatus: 'pending',
   });
 
   await order.save();
+
+  // Redeem coupon atomically after order is saved
+  if (appliedCouponCode) {
+    await redeemCoupon(appliedCouponCode, order._id.toString());
+  }
+
   return order;
 }
 
