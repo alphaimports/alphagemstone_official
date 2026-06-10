@@ -150,7 +150,7 @@ export default function JewelryModal({
                 style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
               >
                 Enjoy{" "}
-                <em className="italic text-[#c9a96e]">$100 off</em>
+                <em className="italic text-[#c9a96e]">$10 off</em>
                 <br />
                 your first piece
               </h2>
@@ -190,7 +190,7 @@ export default function JewelryModal({
                       "transition-colors hover:bg-[#0c2a4f] active:bg-[#091f3a]",
                     ].join(" ")}
                   >
-                    Unlock $100 Off
+                    Unlock $10 Off
                   </button>
                 </div>
 
@@ -251,7 +251,7 @@ export default function JewelryModal({
                 You're in
               </h3>
               <p className="text-[13px] font-light leading-relaxed text-[#4a6080]">
-                Check your inbox — your $100 off code is on its way.
+                Check your inbox — your $10 off code is on its way.
               </p>
               <button
                 onClick={closeModal}
