@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Tag, Search, Loader2, CheckCircle2, Clock, XCircle,
-  Copy, Check, Mail, Trash2, RefreshCw, BarChart2,
+  Copy, Check, Trash2, RefreshCw, BarChart2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthFetch } from '@/hooks/useAuthFetch';
@@ -50,9 +50,9 @@ export default function AdminCouponsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [loading, setLoading]           = useState(false);
   const [copiedId, setCopiedId]         = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
 
-  // ─── Fetch stats ─────────────────────────────────────────────────────────
+  // ─── Fetch stats ──────────────────────────────────────────────────────────
 
   const fetchStats = useCallback(async () => {
     try {
@@ -62,7 +62,7 @@ export default function AdminCouponsPage() {
     } catch { /* silent */ }
   }, [authFetch]);
 
-  // ─── Fetch list ──────────────────────────────────────────────────────────
+  // ─── Fetch list ───────────────────────────────────────────────────────────
 
   const fetchCoupons = useCallback(async () => {
     setLoading(true);
@@ -87,31 +87,20 @@ export default function AdminCouponsPage() {
   useEffect(() => { fetchStats(); }, [fetchStats]);
   useEffect(() => { fetchCoupons(); }, [fetchCoupons]);
 
-  // ─── Actions ─────────────────────────────────────────────────────────────
+  // ─── Delete ───────────────────────────────────────────────────────────────
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this coupon? This cannot be undone.')) return;
-    setActionLoading(id + '-del');
+    setDeleteLoading(id);
     try {
       const res  = await authFetch(`/api/admin/coupons/${id}`, { method: 'DELETE' });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? 'Failed to delete');
-      fetchCoupons(); fetchStats();
+      fetchCoupons();
+      fetchStats();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete');
-    } finally { setActionLoading(null); }
-  }
-
-  async function handleResend(id: string) {
-    setActionLoading(id + '-resend');
-    try {
-      const res  = await authFetch(`/api/admin/coupons/${id}/resend-email`, { method: 'POST' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message ?? 'Failed to resend');
-      alert('Email resent successfully.');
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to resend');
-    } finally { setActionLoading(null); }
+    } finally { setDeleteLoading(null); }
   }
 
   function copyCode(id: string, code: string) {
@@ -127,7 +116,7 @@ export default function AdminCouponsPage() {
     </div>
   );
 
-  // ─── Stat cards ──────────────────────────────────────────────────────────
+  // ─── Stat cards ───────────────────────────────────────────────────────────
   const STAT_CARDS = [
     { label: 'Total Issued', value: stats?.total   ?? '—', icon: Tag,          color: '#6366f1' },
     { label: 'Active',       value: stats?.active  ?? '—', icon: CheckCircle2, color: '#22c55e' },
@@ -145,7 +134,7 @@ export default function AdminCouponsPage() {
             Coupon Management
           </h1>
           <p className="mt-1 text-sm text-[#6b6560]">
-            Track coupon signups, generated codes, and redemptions
+            Coupons are sent automatically when users subscribe · Track codes and redemptions here
           </p>
         </div>
         <button
@@ -284,32 +273,22 @@ export default function AdminCouponsPage() {
                         )}
                       </td>
 
+                      {/* Actions: delete only (no resend — emails are automatic) */}
                       <td className="px-5 py-4">
-                        <div className="flex items-center gap-1.5">
+                        {!c.isUsed ? (
                           <button
-                            onClick={() => handleResend(c._id)}
-                            disabled={actionLoading === c._id + '-resend'}
-                            title="Resend coupon email"
-                            className="p-1.5 rounded-lg text-[#6b6560] hover:bg-[#f0ebe3] hover:text-[#0f3460] transition-colors disabled:opacity-40"
+                            onClick={() => handleDelete(c._id)}
+                            disabled={deleteLoading === c._id}
+                            title="Delete coupon"
+                            className="p-1.5 rounded-lg text-[#6b6560] hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40"
                           >
-                            {actionLoading === c._id + '-resend'
+                            {deleteLoading === c._id
                               ? <Loader2 size={14} className="animate-spin" />
-                              : <Mail size={14} />}
+                              : <Trash2 size={14} />}
                           </button>
-
-                          {!c.isUsed && (
-                            <button
-                              onClick={() => handleDelete(c._id)}
-                              disabled={actionLoading === c._id + '-del'}
-                              title="Delete coupon"
-                              className="p-1.5 rounded-lg text-[#6b6560] hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40"
-                            >
-                              {actionLoading === c._id + '-del'
-                                ? <Loader2 size={14} className="animate-spin" />
-                                : <Trash2 size={14} />}
-                            </button>
-                          )}
-                        </div>
+                        ) : (
+                          <span className="text-[#c4bfb8] text-xs">—</span>
+                        )}
                       </td>
                     </tr>
                   );

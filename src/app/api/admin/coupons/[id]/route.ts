@@ -5,10 +5,11 @@ import { withAdmin } from '@/middleware/auth.middleware';
 import { successResponse, errorResponse } from '@/lib/api-response';
 
 // DELETE /api/admin/coupons/[id]
-export const DELETE = withAdmin(async (req: NextRequest, { params }: { params: { id: string } }) => {
+export const DELETE = withAdmin(async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
   try {
+    const { id } = await context.params;
     await connectDB();
-    await deleteCoupon(params.id);
+    await deleteCoupon(id);
     return successResponse({ message: 'Coupon deleted.' });
   } catch (err) {
     console.error('[admin/coupons DELETE]', err);

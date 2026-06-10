@@ -30,7 +30,6 @@ const CartSchema = new Schema<ICart>(
   { timestamps: true }
 );
 
-CartSchema.index({ user: 1 }, { unique: true });
 
 const Cart = (() => {
   if (mongoose.models && mongoose.models.Cart) {

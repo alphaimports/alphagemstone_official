@@ -5,10 +5,11 @@ import { withAdmin } from '@/middleware/auth.middleware';
 import { successResponse, errorResponse } from '@/lib/api-response';
 
 // POST /api/admin/coupons/[id]/resend-email
-export const POST = withAdmin(async (req: NextRequest, { params }: { params: { id: string } }) => {
+export const POST = withAdmin(async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
   try {
+    const { id } = await context.params;
     await connectDB();
-    await resendCouponEmail(params.id);
+    await resendCouponEmail(id);
     return successResponse({ message: 'Coupon email resent.' });
   } catch (err) {
     console.error('[admin/coupons/resend-email]', err);

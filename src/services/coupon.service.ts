@@ -27,7 +27,28 @@ async function generateUniqueCode(): Promise<string> {
   throw new Error('Failed to generate a unique coupon code');
 }
 
-// ─── Public: subscribe (from modal) ─────────────────────────────────────────
+// ─── Email sender ─────────────────────────────────────────────────────────────
+
+async function sendCouponEmail(
+  email: string,
+  code: string,
+  expiresAt: Date,
+  discount: number,
+) {
+  const { error } = await resend.emails.send({
+    from:    EMAIL_FROM,
+    to:      email,
+    subject: `Your $${discount} Off Coupon — Alpha Imports`,
+    html:    couponEmailHtml({ email, code, expiresAt, discount, minPurchase: MIN_PURCHASE }),
+  });
+
+  if (error) {
+    console.error('[couponEmail] Resend error:', error);
+    throw new Error(`Email delivery failed: ${error.message}`);
+  }
+}
+
+// ─── Public: subscribe (from modal) ──────────────────────────────────────────
 
 /**
  * Creates a coupon for the given email and sends it via Resend.
@@ -101,7 +122,7 @@ export async function validateCoupon(code: string, subtotal: number): Promise<Va
   };
 }
 
-// ─── Internal: redeem on order ───────────────────────────────────────────────
+// ─── Internal: redeem on order ────────────────────────────────────────────────
 
 export async function redeemCoupon(code: string, orderId: string): Promise<number> {
   const coupon = await Coupon.findOne({ code: code.toUpperCase().trim() });
@@ -115,7 +136,7 @@ export async function redeemCoupon(code: string, orderId: string): Promise<numbe
   return coupon.discount;
 }
 
-// ─── Admin: list coupons ─────────────────────────────────────────────────────
+// ─── Admin: list coupons ──────────────────────────────────────────────────────
 
 interface ListOptions {
   page?:   number;
@@ -170,27 +191,4 @@ export async function deleteCoupon(id: string) {
   if (!coupon) throw new Error('Coupon not found');
   if (coupon.isUsed) throw new Error('Cannot delete a redeemed coupon');
   await coupon.deleteOne();
-}
-
-export async function resendCouponEmail(id: string) {
-  const coupon = await Coupon.findById(id);
-  if (!coupon) throw new Error('Coupon not found');
-  await sendCouponEmail(coupon.email, coupon.code, coupon.expiresAt, coupon.discount);
-}
-
-// ─── Email sender ────────────────────────────────────────────────────────────
-
-async function sendCouponEmail(
-  email: string,
-  code: string,
-  expiresAt: Date,
-  discount: number,
-) {
-  const { error } = await resend.emails.send({
-    from:    EMAIL_FROM,
-    to:      email,
-    subject: `Your $${discount} Off Coupon — Alpha Imports`,
-    html:    couponEmailHtml({ email, code, expiresAt, discount, minPurchase: MIN_PURCHASE }),
-  });
-  if (error) console.error('[couponEmail] Resend error:', error);
 }
