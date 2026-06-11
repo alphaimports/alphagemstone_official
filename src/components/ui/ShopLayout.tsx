@@ -1706,10 +1706,7 @@ export default function ShopLayout() {
               )}
             </main>
 
-            {/* Buyers Picks sidebar — only when picks exist */}
-            {buyersPicks.length > 0 && (
-              <BuyersPicks products={buyersPicks} />
-            )}
+            
           </div>
         </div>
       </div>

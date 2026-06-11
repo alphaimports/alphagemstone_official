@@ -19,18 +19,6 @@ export interface IShippingAddress {
   phone?: string;
 }
 
-// ─── FedEx shipment data (label generation) ───────────────────────────────────
-export interface IFedExShipment {
-  trackingNumber: string;
-  labelBase64: string;
-  labelFormat: string;
-  shipmentId: string;
-  serviceType: string;
-  estimatedDelivery?: string;
-  createdAt: Date;
-}
-
-// ─── Multi-carrier shipping fields ───────────────────────────────────────────
 export interface IOrder extends Document {
   _id: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId;
@@ -47,17 +35,19 @@ export interface IOrder extends Document {
   paypalPaymentId?: string;
   paypalPayerId?: string;
   notes?: string;
-  // ─── FedEx label (legacy — kept for existing shipped orders) ──────────────
-  fedex?: IFedExShipment;
-  // ─── Multi-carrier shipping (new) ─────────────────────────────────────────
-  shippingCarrier?: 'FedEx' | 'USPS' | 'UPS' | null;
-  shippingService?: string | null;        // e.g. "Priority Mail", "UPS Ground"
-  shippingServiceCode?: string | null;    // carrier internal code
-  shippingRate?: number;                  // quoted shipping cost in USD
+  // ─── ShipEngine shipping selection (stored at checkout) ───────────────────
+  shippingCarrier?: string | null;          // e.g. "UPS", "USPS", "FedEx"
+  shippingService?: string | null;          // e.g. "UPS Ground", "Priority Mail"
+  shippingServiceCode?: string | null;      // ShipEngine service code
+  shippingRateId?: string | null;           // ShipEngine rate ID — used to purchase label
+  shippingRate?: number;                    // quoted cost in USD
   shippingEstimatedDays?: number | null;
   shippingEstimatedDelivery?: string | null;
+  // ─── Post-purchase label info (set after label is bought) ─────────────────
   trackingNumber?: string | null;
   trackingUrl?: string | null;
+  labelId?: string | null;                  // ShipEngine label ID
+  labelUrl?: string | null;                 // printable PDF URL
   shippedAt?: Date | null;
   // ─── Coupon ───────────────────────────────────────────────────────────────
   appliedCouponCode?: string | null;
@@ -91,20 +81,6 @@ const ShippingAddressSchema = new Schema<IShippingAddress>(
   { _id: false }
 );
 
-// ─── FedEx sub-schema (legacy label storage) ──────────────────────────────────
-const FedExShipmentSchema = new Schema<IFedExShipment>(
-  {
-    trackingNumber: { type: String, required: true },
-    labelBase64: { type: String, required: true },
-    labelFormat: { type: String, default: 'PDF' },
-    shipmentId: { type: String, required: true },
-    serviceType: { type: String, required: true },
-    estimatedDelivery: String,
-    createdAt: { type: Date, default: Date.now },
-  },
-  { _id: false }
-);
-
 const OrderSchema = new Schema<IOrder>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -133,22 +109,19 @@ const OrderSchema = new Schema<IOrder>(
     paypalPaymentId: String,
     paypalPayerId: String,
     notes: String,
-    // ─── FedEx label (legacy) ────────────────────────────────────────────────
-    fedex: { type: FedExShipmentSchema, default: undefined },
-    // ─── Multi-carrier shipping ───────────────────────────────────────────────
-    shippingCarrier: {
-      type: String,
-      enum: ['FedEx', 'USPS', 'UPS', null],
-      default: null,
-    },
-    shippingService: { type: String, default: null },
-    shippingServiceCode: { type: String, default: null },
-    shippingRate: { type: Number, default: 0 },
-    shippingEstimatedDays: { type: Number, default: null },
+    // ─── ShipEngine shipping ──────────────────────────────────────────────────
+    shippingCarrier:           { type: String, default: null },
+    shippingService:           { type: String, default: null },
+    shippingServiceCode:       { type: String, default: null },
+    shippingRateId:            { type: String, default: null },
+    shippingRate:              { type: Number, default: 0 },
+    shippingEstimatedDays:     { type: Number, default: null },
     shippingEstimatedDelivery: { type: String, default: null },
-    trackingNumber: { type: String, default: null, index: true },
-    trackingUrl: { type: String, default: null },
-    shippedAt: { type: Date, default: null },
+    trackingNumber:            { type: String, default: null, index: true },
+    trackingUrl:               { type: String, default: null },
+    labelId:                   { type: String, default: null },
+    labelUrl:                  { type: String, default: null },
+    shippedAt:                 { type: Date, default: null },
     // ─── Coupon ───────────────────────────────────────────────────────────────
     appliedCouponCode: { type: String, default: null },
     couponDiscount:    { type: Number, default: 0 },
@@ -160,8 +133,7 @@ OrderSchema.index({ user: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ paypalOrderId: 1 });
 OrderSchema.index({ createdAt: -1 });
-OrderSchema.index({ 'fedex.trackingNumber': 1 });   // legacy
-OrderSchema.index({ trackingNumber: 1 });            // multi-carrier
+OrderSchema.index({ trackingNumber: 1 });
 
 const Order = (() => {
   if (mongoose.models && mongoose.models.Order) {

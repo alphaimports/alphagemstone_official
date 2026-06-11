@@ -1,69 +1,46 @@
 /**
  * POST /api/shipping/rates
- * Aggregate shipping rates from all enabled carriers (FedEx, USPS, UPS) in parallel.
- * Returns rates grouped by carrier plus a flat sorted list.
+ * Returns live shipping rates from all ShipEngine-connected carriers.
  *
  * Body:
  * {
- *   "origin": { "street1": "...", "city": "...", "state": "NY", "postalCode": "10001", "country": "US" },
- *   "destination": { "street1": "...", "city": "...", "state": "CA", "postalCode": "90012", "country": "US" },
- *   "package": { "weightLbs": 1.5, "lengthIn": 10, "widthIn": 8, "heightIn": 4, "declaredValueUsd": 500 },
- *   "carriers": ["fedex", "usps", "ups"]   // optional — defaults to all three
+ *   "origin":      { "street1": "...", "city": "New York", "state": "NY", "postalCode": "10001", "country": "US" },
+ *   "destination": { "street1": "...", "city": "Los Angeles", "state": "CA", "postalCode": "90012", "country": "US" },
+ *   "package":     { "weightLbs": 0.5, "lengthIn": 6, "widthIn": 4, "heightIn": 2, "declaredValueUsd": 500 }
  * }
  *
  * Response 200:
  * {
  *   "success": true,
- *   "data": {
- *     "byCarrier": { "fedex": [...], "usps": [...], "ups": [...] },
- *     "all": [/* sorted cheapest first *\/],
- *     "errors": [{ "carrier": "FedEx", "message": "..." }]
- *   }
+ *   "data": { "rates": [...sorted cheapest first], "count": 8 }
  * }
  */
 
-import { NextRequest } from "next/server";
-import { apiError, apiSuccess } from "@/lib/api-response";
-import { getAllCarrierRates } from "@/services/shipping.aggregator";
-import { withAuth } from "@/middleware/auth.middleware";
-import type { ShippingRate } from "@/types/shipping";
+import { NextRequest } from 'next/server';
+import { apiError, apiSuccess } from '@/lib/api-response';
+import { getShipEngineRates } from '@/services/shipengine.service';
+import { withAuth } from '@/middleware/auth.middleware';
 
 async function handler(req: NextRequest) {
   try {
-    const { origin, destination, package: pkg, carriers } = await req.json();
+    const body = await req.json();
+    const { origin, destination, package: pkg } = body;
 
-    if (!origin?.postalCode || !destination?.postalCode || !pkg?.weightLbs) {
-      return apiError(
-        "origin.postalCode, destination.postalCode, and package.weightLbs are required",
-        400
-      );
+    if (!origin?.postalCode || !destination?.postalCode) {
+      return apiError('origin.postalCode and destination.postalCode are required', 400);
+    }
+    if (!pkg?.weightLbs) {
+      return apiError('package.weightLbs is required', 400);
     }
 
-    const { fedex, usps, ups, errors } = await getAllCarrierRates(origin, destination, pkg);
+    const rates = await getShipEngineRates(origin, destination, pkg);
 
-    // Apply carrier filter if provided
-    const enabledCarriers: string[] = Array.isArray(carriers)
-      ? carriers.map((c: string) => c.toLowerCase())
-      : ["fedex", "usps", "ups"];
-
-    const byCarrier = {
-      fedex: enabledCarriers.includes("fedex") ? fedex : [],
-      usps: enabledCarriers.includes("usps") ? usps : [],
-      ups: enabledCarriers.includes("ups") ? ups : [],
-    };
-
-    const all: ShippingRate[] = [
-      ...byCarrier.fedex,
-      ...byCarrier.usps,
-      ...byCarrier.ups,
-    ].sort((a, b) => a.rate - b.rate);
-
-    return apiSuccess({ byCarrier, all, errors });
+    return apiSuccess({ rates, count: rates.length });
   } catch (err: any) {
-    console.error("[shipping/rates]", err);
-    return apiError(err.message ?? "Failed to fetch shipping rates", 500);
+    console.error('[shipping/rates]', err);
+    return apiError(err.message ?? 'Failed to fetch shipping rates', 500);
   }
 }
 
-// Require authentication — only logged-in users (at checkout) can fetch rates
+// Only authenticated users (at checkout) can fetch rates
 export const POST = withAuth(handler);

@@ -4,117 +4,113 @@ import Product, { IProduct } from '@/models/Product';
 import User from '@/models/User';
 import { clearCart, calculateCartTotals } from './cart.service';
 import { capturePayPalOrder, createPayPalOrder } from './paypal.service';
-import { createFedExShipment, trackFedExShipment } from './fedex.service';
-import { createUspsShipment } from './usps.service';
-import { createUpsShipment } from './ups.service';
 import { validateCoupon, redeemCoupon } from './coupon.service';
+import { purchaseLabelFromRate } from './shipengine.service';
 import { Resend } from 'resend';
 import { orderConfirmationEmailHtml, orderShippedEmailHtml } from '@/lib/email-templates';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend    = new Resend(process.env.RESEND_API_KEY);
 const EMAIL_FROM = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Converts a shipping address from our DB format to the FedEx party format.
- * FedEx countryCode must be ISO 3166-1 alpha-2 (e.g. "US", "CA", "GB").
- * Phone is required by FedEx; falls back to a placeholder if not supplied.
- */
-function toFedExRecipient(addr: IShippingAddress) {
-  return {
-    contact: {
-      personName: addr.fullName,
-      phoneNumber: addr.phone ?? '0000000000',
-    },
-    address: {
-      streetLines: addr.addressLine2
-        ? [addr.addressLine1, addr.addressLine2]
-        : [addr.addressLine1],
-      city: addr.city,
-      stateOrProvinceCode: addr.state,
-      postalCode: addr.postalCode,
-      countryCode: addr.country,
-    },
-  };
-}
-
-/**
- * Estimates total order weight in LB.
- * Diamonds/gemstones are light — we default to 0.5 LB per item
- * but cap the total at 5 LB (one box).  Adjust to your packaging reality.
- */
+/** Estimates order weight in LB (0.5 LB per item, max 5 LB). */
 function estimateWeightLb(totalItems: number): number {
   return Math.min(totalItems * 0.5, 5);
 }
 
-// ─── Existing functions (unchanged) ──────────────────────────────────────────
+// ─── Order creation ───────────────────────────────────────────────────────────
+
+export interface ShippingSelection {
+  shippingCarrier?:           string;
+  shippingService?:           string;
+  shippingServiceCode?:       string;
+  shippingRateId?:            string;   // ShipEngine rate ID — used to purchase label
+  shippingRate?:              number;
+  shippingEstimatedDays?:     number;
+  shippingEstimatedDelivery?: string;
+}
 
 export async function createOrderFromCart(
   userId: string,
   shippingAddress: IShippingAddress,
   paymentMethod: 'paypal' | 'cod',
-  couponCode?: string
+  couponCode?: string,
+  shippingSelection?: ShippingSelection
 ) {
-  const cart = await Cart.findOne({ user: userId }).populate('items.product').lean() as ICart | null;
+  const cart = await Cart.findOne({ user: userId })
+    .populate('items.product')
+    .lean() as ICart | null;
   if (!cart || cart.items.length === 0) throw new Error('Cart is empty');
 
   const items = [];
   for (const item of cart.items) {
     const productDoc = item.product as unknown as IProduct;
-    const product = await Product.findOne({ _id: productDoc._id, isActive: true }) as IProduct | null;
-    if (!product) throw new Error(`Product is no longer available`);
-    if (product.stock < item.quantity) throw new Error(`Insufficient stock for ${product.name}`);
+    const product = await Product.findOne({
+      _id: productDoc._id,
+      isActive: true,
+    }) as IProduct | null;
+    if (!product) throw new Error('Product is no longer available');
+    if (product.stock < item.quantity)
+      throw new Error(`Insufficient stock for ${product.name}`);
 
     items.push({
-      product: product._id,
-      name: product.name,
-      price: product.price,
+      product:  product._id,
+      name:     product.name,
+      price:    product.price,
       quantity: item.quantity,
-      image: product.images[0],
+      image:    product.images[0],
     });
   }
 
-  const { subtotal, tax, shippingCost, total } = calculateCartTotals(items);
+  const { subtotal, tax, shippingCost } = calculateCartTotals(items);
 
-  // ─── Apply coupon if provided ─────────────────────────────────────────────
-  let couponDiscount = 0;
+  // Apply coupon
+  let couponDiscount    = 0;
   let appliedCouponCode: string | null = null;
-
   if (couponCode) {
     const validation = await validateCoupon(couponCode, subtotal);
     if (validation.valid) {
-      couponDiscount = validation.discount;
+      couponDiscount    = validation.discount;
       appliedCouponCode = couponCode.toUpperCase().trim();
     }
   }
 
-  const finalTotal = Math.max(0, total - couponDiscount);
+  const selectedShippingCost = shippingSelection?.shippingRate ?? shippingCost;
+  const finalTotal = Math.max(0, subtotal + tax + selectedShippingCost - couponDiscount);
 
   const order = new Order({
-    user: userId,
+    user:            userId,
     items,
     shippingAddress,
     subtotal,
     tax,
-    shippingCost,
-    totalAmount: finalTotal,
+    shippingCost:    selectedShippingCost,
+    totalAmount:     finalTotal,
     appliedCouponCode,
     couponDiscount,
     paymentMethod,
-    status: 'pending',
-    paymentStatus: 'pending',
+    status:          'pending',
+    paymentStatus:   'pending',
+    // ShipEngine shipping selection
+    shippingCarrier:           shippingSelection?.shippingCarrier           ?? null,
+    shippingService:           shippingSelection?.shippingService           ?? null,
+    shippingServiceCode:       shippingSelection?.shippingServiceCode       ?? null,
+    shippingRateId:            shippingSelection?.shippingRateId            ?? null,
+    shippingEstimatedDays:     shippingSelection?.shippingEstimatedDays     ?? null,
+    shippingEstimatedDelivery: shippingSelection?.shippingEstimatedDelivery ?? null,
   });
 
   await order.save();
 
-  // Redeem coupon atomically after order is saved
   if (appliedCouponCode) {
     await redeemCoupon(appliedCouponCode, order._id.toString());
   }
 
   return order;
 }
+
+// ─── PayPal ───────────────────────────────────────────────────────────────────
 
 export async function initiatePayPalPayment(orderId: string) {
   const order = await Order.findById(orderId) as IOrder | null;
@@ -124,25 +120,22 @@ export async function initiatePayPalPayment(orderId: string) {
   order.paypalOrderId = paypalOrder.id;
   await order.save();
 
-  const approvalUrl = (paypalOrder.links as Array<{ rel: string; href: string }>)?.find(
-    (l) => l.rel === 'approve'
-  )?.href;
+  const approvalUrl = (
+    paypalOrder.links as Array<{ rel: string; href: string }>
+  )?.find((l) => l.rel === 'approve')?.href;
 
   return { paypalOrderId: paypalOrder.id, approvalUrl };
 }
 
 /**
- * Captures PayPal payment, then auto-generates a FedEx shipping label.
- * If FedEx label creation fails, the payment is still marked as captured
- * and the error is logged — so the order is never lost.  Admin can
- * regenerate the label via POST /api/admin/orders/[id]/fedex-label.
+ * Captures PayPal payment.
+ * If a shippingRateId was saved at checkout, automatically purchases a
+ * ShipEngine label. Label failure is non-fatal — admin can buy it manually
+ * via POST /api/admin/orders/:id/purchase-label.
  */
 export async function capturePayment(paypalOrderId: string) {
   const captureData = await capturePayPalOrder(paypalOrderId);
-
-  if (captureData.status !== 'COMPLETED') {
-    throw new Error('Payment not completed');
-  }
+  if (captureData.status !== 'COMPLETED') throw new Error('Payment not completed');
 
   const order = await Order.findOne({ paypalOrderId }) as IOrder | null;
   if (!order) throw new Error('Order not found');
@@ -154,29 +147,33 @@ export async function capturePayment(paypalOrderId: string) {
     });
   }
 
-  order.status = 'paid';
-  order.paymentStatus = 'completed';
+  order.status          = 'paid';
+  order.paymentStatus   = 'completed';
   order.paypalPaymentId =
     captureData.purchase_units?.[0]?.payments?.captures?.[0]?.id;
   await order.save();
 
   await clearCart(order.user.toString());
 
-  // ─── Send order confirmation email ───────────────────────────────────────
   void sendOrderConfirmationEmail(order);
 
-  // ─── Auto-generate FedEx label ────────────────────────────────────────────
-  try {
-    await generateFedExLabel(order._id.toString());
-  } catch (err) {
-    // Do NOT rethrow — payment succeeded, label can be regenerated by admin
-    console.error(`[FedEx] Auto-label failed for order ${order._id}:`, err);
+  // Auto-purchase ShipEngine label if rate was stored at checkout
+  const rateId = (order as any).shippingRateId as string | null;
+  if (rateId) {
+    try {
+      await purchaseAndSaveLabel(order._id.toString(), rateId);
+    } catch (err) {
+      console.error(
+        `[ShipEngine] Auto-label failed for order ${order._id}:`,
+        err
+      );
+    }
   }
 
-  // Re-fetch so the caller gets the fedex data if it was saved
-  const updatedOrder = await Order.findById(order._id).lean();
-  return updatedOrder ?? order;
+  return (await Order.findById(order._id).lean()) ?? order;
 }
+
+// ─── Order queries ────────────────────────────────────────────────────────────
 
 export async function getUserOrders(userId: string) {
   return Order.find({ user: userId }).sort({ createdAt: -1 }).lean();
@@ -206,16 +203,20 @@ export async function getAllOrders(page = 1, limit = 20, status?: string) {
 }
 
 export async function updateOrderStatus(orderId: string, status: string) {
-  const validStatuses = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+  const validStatuses = [
+    'pending', 'paid', 'processing', 'shipped',
+    'delivered', 'cancelled', 'refunded',
+  ];
   if (!validStatuses.includes(status)) throw new Error('Invalid status');
 
   const order = await Order.findByIdAndUpdate(
     orderId,
     { $set: { status } },
     { new: true }
-  ).populate('user', 'name email').lean() as (IOrder & { user: { name: string; email: string } }) | null;
+  )
+    .populate('user', 'name email')
+    .lean() as (IOrder & { user: { name: string; email: string } }) | null;
 
-  // Send shipped notification when admin marks order as shipped
   if (order && status === 'shipped') {
     void sendOrderShippedEmail(order);
   }
@@ -223,31 +224,73 @@ export async function updateOrderStatus(orderId: string, status: string) {
   return order;
 }
 
-// ─── Email helpers ───────────────────────────────────────────────────────────
+// ─── ShipEngine label purchase ────────────────────────────────────────────────
+
+/**
+ * Purchases a ShipEngine label for a paid order.
+ * Uses the stored shippingRateId unless rateId is explicitly provided.
+ * Saves labelId, labelUrl, trackingNumber, and shippedAt to the order.
+ */
+export async function purchaseAndSaveLabel(
+  orderId: string,
+  rateId?: string
+) {
+  const order = await Order.findById(orderId) as IOrder | null;
+  if (!order) throw new Error('Order not found');
+  if (order.paymentStatus !== 'completed') {
+    throw new Error('Cannot purchase label: payment not completed');
+  }
+
+  const resolvedRateId = rateId ?? (order as any).shippingRateId;
+  if (!resolvedRateId) {
+    throw new Error(
+      'No shippingRateId on this order. Select a shipping rate at checkout, or pass a rateId explicitly.'
+    );
+  }
+
+  const label = await purchaseLabelFromRate(resolvedRateId);
+
+  await Order.findByIdAndUpdate(orderId, {
+    $set: {
+      labelId:        label.labelId,
+      labelUrl:       label.labelUrl,
+      trackingNumber: label.trackingNumber,
+      shippedAt:      new Date(),
+      // Advance from 'paid' → 'processing' once label is ready
+      ...(order.status === 'paid' ? { status: 'processing' } : {}),
+    },
+  });
+
+  return Order.findById(orderId).lean();
+}
+
+// ─── Email helpers ────────────────────────────────────────────────────────────
 
 async function sendOrderConfirmationEmail(order: IOrder): Promise<void> {
   try {
-    const user = await User.findById(order.user).select('name email').lean() as { name: string; email: string } | null;
+    const user = await User.findById(order.user)
+      .select('name email')
+      .lean() as { name: string; email: string } | null;
     if (!user) return;
 
     const { error } = await resend.emails.send({
-      from: EMAIL_FROM,
-      to: user.email,
+      from:    EMAIL_FROM,
+      to:      user.email,
       subject: `Order Confirmed — #${order._id.toString().slice(-8).toUpperCase()}`,
-      html: orderConfirmationEmailHtml({
-        orderId: order._id.toString(),
-        customerName: user.name,
-        items: order.items.map(i => ({
-          name: i.name,
+      html:    orderConfirmationEmailHtml({
+        orderId:         order._id.toString(),
+        customerName:    user.name,
+        items:           order.items.map((i) => ({
+          name:     i.name,
           quantity: i.quantity,
-          price: i.price,
-          image: i.image,
+          price:    i.price,
+          image:    i.image,
         })),
-        subtotal: order.subtotal,
-        shippingCost: order.shippingCost,
-        tax: order.tax,
-        totalAmount: order.totalAmount,
-        paymentMethod: order.paymentMethod,
+        subtotal:        order.subtotal,
+        shippingCost:    order.shippingCost,
+        tax:             order.tax,
+        totalAmount:     order.totalAmount,
+        paymentMethod:   order.paymentMethod,
         shippingAddress: order.shippingAddress,
       }),
     });
@@ -258,22 +301,23 @@ async function sendOrderConfirmationEmail(order: IOrder): Promise<void> {
   }
 }
 
-async function sendOrderShippedEmail(order: IOrder & { user: { name: string; email: string } }): Promise<void> {
+async function sendOrderShippedEmail(
+  order: IOrder & { user: { name: string; email: string } }
+): Promise<void> {
   try {
-    const trackingNumber = order.trackingNumber || order.fedex?.trackingNumber;
-    if (!trackingNumber) return;
+    if (!order.trackingNumber) return;
 
     const { error } = await resend.emails.send({
-      from: EMAIL_FROM,
-      to: order.user.email,
+      from:    EMAIL_FROM,
+      to:      order.user.email,
       subject: `Your Order Has Shipped — #${order._id.toString().slice(-8).toUpperCase()}`,
-      html: orderShippedEmailHtml({
-        orderId: order._id.toString(),
-        customerName: order.user.name,
-        trackingNumber,
-        trackingUrl: order.trackingUrl ?? undefined,
-        shippingCarrier: order.shippingCarrier ?? undefined,
-        estimatedDelivery: order.shippingEstimatedDelivery ?? order.fedex?.estimatedDelivery,
+      html:    orderShippedEmailHtml({
+        orderId:           order._id.toString(),
+        customerName:      order.user.name,
+        trackingNumber:    order.trackingNumber,
+        trackingUrl:       order.trackingUrl   ?? undefined,
+        shippingCarrier:   order.shippingCarrier ?? undefined,
+        estimatedDelivery: order.shippingEstimatedDelivery ?? undefined,
       }),
     });
 
@@ -281,180 +325,4 @@ async function sendOrderShippedEmail(order: IOrder & { user: { name: string; ema
   } catch (err) {
     console.error('[orderShippedEmail] Failed:', err);
   }
-}
-
-// ─── NEW: FedEx label generation ──────────────────────────────────────────────
-
-/**
- * Creates (or re-creates) a FedEx shipping label for a paid order.
- * Called automatically after PayPal capture, and manually from the admin panel.
- *
- * @param orderId - MongoDB _id of the order
- * @returns The updated order document
- */
-export async function generateFedExLabel(orderId: string) {
-  const order = await Order.findById(orderId) as IOrder | null;
-  if (!order) throw new Error('Order not found');
-  if (order.paymentStatus !== 'completed') {
-    throw new Error('Cannot generate label: payment not completed');
-  }
-
-  const totalItems = order.items.reduce((sum, i) => sum + i.quantity, 0);
-  const totalValue = order.subtotal; // insured value = product subtotal
-
-  const result = await createFedExShipment({
-    recipient: toFedExRecipient(order.shippingAddress),
-    packages: [
-      {
-        weight: estimateWeightLb(totalItems),
-        // Standard small jewelry box dimensions (inches)
-        length: 8,
-        width: 6,
-        height: 4,
-        declaredValue: totalValue,
-      },
-    ],
-    customerReference: order._id.toString(),
-    insuredValue: totalValue,
-  });
-
-  // Persist FedEx data on the order and advance status to 'processing'
-  await Order.findByIdAndUpdate(orderId, {
-    $set: {
-      fedex: {
-        trackingNumber: result.trackingNumber,
-        labelBase64: result.labelBase64,
-        labelFormat: result.labelFormat,
-        shipmentId: result.shipmentId,
-        serviceType: result.serviceType,
-        estimatedDelivery: result.estimatedDelivery,
-        createdAt: new Date(),
-      },
-      // Only advance status if not already further along
-      ...(order.status === 'paid' && { status: 'processing' }),
-    },
-  });
-
-  return Order.findById(orderId).lean();
-}
-
-// ─── NEW: Live tracking ───────────────────────────────────────────────────────
-
-/**
- * Returns live FedEx tracking data for an order.
- */
-export async function getOrderTracking(orderId: string, userId?: string) {
-  const query: Record<string, unknown> = { _id: orderId };
-  if (userId) query.user = userId;
-
-  const order = await Order.findOne(query).lean() as IOrder | null;
-  if (!order) throw new Error('Order not found');
-  if (!order.fedex?.trackingNumber) throw new Error('No tracking number for this order');
-
-  return trackFedExShipment(order.fedex.trackingNumber);
-}
-// ─── USPS label generation ─────────────────────────────────────────────────────
-
-export async function generateUspsLabel(orderId: string) {
-  const order = await Order.findById(orderId) as IOrder | null;
-  if (!order) throw new Error('Order not found');
-  if (order.paymentStatus !== 'completed') {
-    throw new Error('Cannot generate label: payment not completed');
-  }
-
-  const { STORE_ORIGIN, DEFAULT_PACKAGE } = await import('@/lib/shipping-config');
-
-  const totalItems = order.items.reduce((sum, i) => sum + i.quantity, 0);
-  const pkg = {
-    ...DEFAULT_PACKAGE,
-    weightLbs: estimateWeightLb(totalItems),
-    declaredValueUsd: order.subtotal,
-    description: 'Gemstone jewellery',
-  };
-
-  const destination = {
-    fullName:   order.shippingAddress.fullName,
-    street1:    order.shippingAddress.addressLine1,
-    street2:    order.shippingAddress.addressLine2,
-    city:       order.shippingAddress.city,
-    state:      order.shippingAddress.state,
-    postalCode: order.shippingAddress.postalCode,
-    country:    order.shippingAddress.country,
-    phone:      order.shippingAddress.phone,
-  };
-
-  const result = await createUspsShipment(STORE_ORIGIN, destination, pkg, {
-    customerRef: order._id.toString(),
-  });
-
-  await Order.findByIdAndUpdate(orderId, {
-    $set: {
-      usps: {
-        trackingNumber:   result.trackingNumber,
-        labelBase64:      result.labelBase64,
-        labelFormat:      result.labelFormat,
-        serviceType:      result.serviceType,
-        estimatedDelivery: result.estimatedDelivery,
-        createdAt:        new Date(),
-        carrier:          'USPS',
-      },
-      ...(order.status === 'paid' && { status: 'processing' }),
-    },
-  });
-
-  return Order.findById(orderId).lean();
-}
-
-// ─── UPS label generation ──────────────────────────────────────────────────────
-
-export async function generateUpsLabel(orderId: string) {
-  const order = await Order.findById(orderId) as IOrder | null;
-  if (!order) throw new Error('Order not found');
-  if (order.paymentStatus !== 'completed') {
-    throw new Error('Cannot generate label: payment not completed');
-  }
-
-  const { STORE_ORIGIN, DEFAULT_PACKAGE } = await import('@/lib/shipping-config');
-
-  const totalItems = order.items.reduce((sum, i) => sum + i.quantity, 0);
-  const pkg = {
-    ...DEFAULT_PACKAGE,
-    weightLbs: estimateWeightLb(totalItems),
-    declaredValueUsd: order.subtotal,
-    description: 'Gemstone jewellery',
-  };
-
-  const destination = {
-    fullName:   order.shippingAddress.fullName,
-    street1:    order.shippingAddress.addressLine1,
-    street2:    order.shippingAddress.addressLine2,
-    city:       order.shippingAddress.city,
-    state:      order.shippingAddress.state,
-    postalCode: order.shippingAddress.postalCode,
-    country:    order.shippingAddress.country,
-    phone:      order.shippingAddress.phone,
-  };
-
-  const result = await createUpsShipment(STORE_ORIGIN, destination, pkg, {
-    customerRef: order._id.toString(),
-  });
-
-  await Order.findByIdAndUpdate(orderId, {
-    $set: {
-      ups: {
-        trackingNumber:    result.trackingNumber,
-        labelBase64:       result.labelBase64,
-        labelFormat:       result.labelFormat,
-        shipmentId:        result.shipmentId,
-        serviceType:       result.serviceType,
-        serviceCode:       result.serviceCode,
-        estimatedDelivery: result.estimatedDelivery,
-        createdAt:         new Date(),
-        carrier:           'UPS',
-      },
-      ...(order.status === 'paid' && { status: 'processing' }),
-    },
-  });
-
-  return Order.findById(orderId).lean();
 }
