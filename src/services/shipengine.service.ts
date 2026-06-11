@@ -131,6 +131,34 @@ export async function getShipEngineRates(
   return rates;
 }
 
+// ─── Rate-limit-aware fetch with exponential backoff ─────────────────────────
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelayMs = 2000
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      const isTooManyRequests =
+        err?.message?.toLowerCase().includes('too many requests') ||
+        err?.code === 'rate_limit_exceeded' ||
+        err?.statusCode === 429;
+
+      if (!isTooManyRequests || attempt === maxRetries) break;
+
+      // Exponential back-off: 2 s, 4 s, 8 s …
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      await new Promise((res) => setTimeout(res, delay));
+    }
+  }
+  throw lastErr;
+}
+
 // ─── Track Package ────────────────────────────────────────────────────────────
 
 export async function trackShipEnginePackage(
@@ -141,10 +169,13 @@ export async function trackShipEnginePackage(
 
   const resolvedCarrier = carrierCode ?? inferCarrierCode(trackingNumber);
 
-  const result: any = await client.trackUsingCarrierCodeAndTrackingNumber({
-    carrierCode:    resolvedCarrier,
-    trackingNumber,
-  });
+  // Wrap in retry logic to handle ShipEngine "Too Many Requests" (429) errors
+  const result: any = await withRetry(() =>
+    client.trackUsingCarrierCodeAndTrackingNumber({
+      carrierCode:    resolvedCarrier,
+      trackingNumber,
+    })
+  );
 
   const events: TrackingEvent[] = (result.events ?? []).map((e: any) => ({
     timestamp: e.occurredAt

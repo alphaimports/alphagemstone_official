@@ -5,6 +5,28 @@ import { useApi } from '@/hooks/useApi';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import OrderTracking from '@/components/shipping/OrderTracking';
+import {
+  Package,
+  Truck,
+  CheckCircle2,
+  Clock,
+  CircleDot,
+  ChevronDown,
+  Tag,
+  MapPin,
+  CreditCard,
+  ExternalLink,
+  ShoppingBag,
+  Receipt,
+  ArrowRight,
+  Printer,
+  TrendingUp,
+  Box,
+  CircleCheck,
+  Ban,
+  RefreshCw,
+  Loader2,
+} from 'lucide-react';
 
 interface OrderItem {
   name: string;
@@ -36,69 +58,112 @@ interface Order {
   createdAt: string;
   items: OrderItem[];
   shippingAddress: ShippingAddress;
-  // ShipEngine shipping fields
-  shippingCarrier?:           string | null;
-  shippingService?:           string | null;
-  shippingServiceCode?:       string | null;
-  shippingRate?:              number;
+  shippingCarrier?: string | null;
+  shippingService?: string | null;
+  shippingServiceCode?: string | null;
+  shippingRate?: number;
   shippingEstimatedDelivery?: string | null;
-  shippingEstimatedDays?:     number | null;
-  shippingRateId?:            string | null;
-  trackingNumber?:            string | null;
-  trackingUrl?:               string | null;
-  labelId?:                   string | null;
-  labelUrl?:                  string | null;
-  shippedAt?:                 string | null;
-  // Legacy
+  shippingEstimatedDays?: number | null;
+  shippingRateId?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  labelId?: string | null;
+  labelUrl?: string | null;
+  shippedAt?: string | null;
   fedex?: { trackingNumber: string; serviceType: string; estimatedDelivery?: string } | null;
 }
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; border: string; dot: string }> = {
-  pending:    { label: 'Pending',    bg: '#fdf5e6', text: '#8b5e1a', border: '#e0c070', dot: '#d4a843' },
-  paid:       { label: 'Paid',       bg: '#edf7ed', text: '#2d6b2d', border: '#80c880', dot: '#4caf50' },
-  processing: { label: 'Processing', bg: '#e8f0fb', text: '#1a4a9e', border: '#7ab0c9', dot: '#4a90d9' },
-  shipped:    { label: 'Shipped',    bg: '#f3eefb', text: '#5a2d8b', border: '#b090d4', dot: '#9c5fd4' },
-  delivered:  { label: 'Delivered',  bg: '#edf7ed', text: '#2d6b2d', border: '#80c880', dot: '#4caf50' },
-  cancelled:  { label: 'Cancelled',  bg: '#fdf0f0', text: '#9e2d2d', border: '#d48080', dot: '#d44' },
-  refunded:   { label: 'Refunded',   bg: '#f5f5f5', text: '#5a5a5a', border: '#b0b0b0', dot: '#888' },
+// ─── Status config ─────────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<string, {
+  label: string;
+  bg: string;
+  text: string;
+  border: string;
+  Icon: React.ElementType;
+}> = {
+  pending:    { label: 'Pending',    bg: '#fef9ec', text: '#92400e', border: '#fde68a', Icon: Clock },
+  paid:       { label: 'Paid',       bg: '#f0fdf4', text: '#15803d', border: '#86efac', Icon: CircleCheck },
+  processing: { label: 'Processing', bg: '#eff6ff', text: '#1d4ed8', border: '#93c5fd', Icon: RefreshCw },
+  shipped:    { label: 'Shipped',    bg: '#f5f3ff', text: '#6d28d9', border: '#c4b5fd', Icon: Truck },
+  delivered:  { label: 'Delivered',  bg: '#f0fdf4', text: '#15803d', border: '#86efac', Icon: CheckCircle2 },
+  cancelled:  { label: 'Cancelled',  bg: '#fef2f2', text: '#dc2626', border: '#fca5a5', Icon: Ban },
+  refunded:   { label: 'Refunded',   bg: '#f9fafb', text: '#4b5563', border: '#d1d5db', Icon: RefreshCw },
 };
 
-const STEPS = ['pending', 'processing', 'shipped', 'delivered'];
-const ITEM_EMOJIS = ['💎', '💍', '🌟', '✨', '🪙'];
+const STEPS = ['pending', 'processing', 'shipped', 'delivered'] as const;
+const STEP_LABELS = ['Placed', 'Processing', 'Shipped', 'Delivered'];
+const STEP_ICONS: React.ElementType[] = [Receipt, RefreshCw, Truck, CheckCircle2];
 
-function StatusPill({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? { label: status, bg: '#f5f5f5', text: '#555', border: '#ccc', dot: '#999' };
+// ─── Components ────────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] ?? {
+    label: status,
+    bg: '#f9fafb',
+    text: '#374151',
+    border: '#d1d5db',
+    Icon: CircleDot,
+  };
+  const { Icon } = cfg;
   return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.68rem] font-semibold tracking-wide uppercase"
-      style={{ background: cfg.bg, color: cfg.text, border: `1px solid ${cfg.border}` }}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: cfg.dot }} />
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[0.7rem] font-semibold tracking-wide"
+      style={{ background: cfg.bg, color: cfg.text, border: `1px solid ${cfg.border}` }}
+    >
+      <Icon size={11} strokeWidth={2.5} />
       {cfg.label}
     </span>
   );
 }
 
-function ProgressSteps({ status }: { status: string }) {
-  const current = STEPS.indexOf(status);
-  const labels = ['Order Placed', 'Processing', 'Shipped', 'Delivered'];
+function ProgressTrack({ status }: { status: string }) {
+  const current = STEPS.indexOf(status as typeof STEPS[number]);
+  if (current < 0) return null;
+
   return (
-    <div className="flex items-center gap-0 w-full">
-      {STEPS.map((_, i) => {
-        const done    = i <= current;
-        const active  = i === current;
+    <div className="relative flex items-start justify-between px-1 pt-1 pb-6">
+      {/* Connector line */}
+      <div
+        className="absolute top-[14px] left-0 right-0 mx-6 h-px"
+        style={{ background: '#e5e2db' }}
+      />
+      {/* Active fill */}
+      <div
+        className="absolute top-[14px] left-0 h-px mx-6 transition-all duration-700"
+        style={{
+          background: 'linear-gradient(90deg, #c9a84c, #e8c96a)',
+          width: current === 0
+            ? '0%'
+            : `calc(${(current / (STEPS.length - 1)) * 100}% - 3rem + ${(current / (STEPS.length - 1)) * 3}rem)`,
+        }}
+      />
+
+      {STEPS.map((step, i) => {
+        const done   = i <= current;
+        const active = i === current;
+        const Icon   = STEP_ICONS[i];
         return (
-          <div key={i} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center gap-1">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[0.55rem] font-bold border-2 transition-all ${done ? 'border-[#c9a84c] bg-[#c9a84c] text-white' : 'border-stone-200 bg-white text-stone-300'} ${active ? 'ring-2 ring-[#c9a84c]/30' : ''}`}>
-                {done && i < current ? '✓' : i + 1}
-              </div>
-              <span className={`text-[0.55rem] font-medium whitespace-nowrap ${done ? 'text-[#c9a84c]' : 'text-stone-300'}`}>
-                {labels[i]}
-              </span>
+          <div key={step} className="relative z-10 flex flex-col items-center gap-2" style={{ width: `${100 / STEPS.length}%` }}>
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300"
+              style={{
+                background: done ? 'linear-gradient(135deg, #c9a84c 0%, #e8c96a 100%)' : '#fff',
+                border: `1.5px solid ${done ? '#c9a84c' : '#d5d0c8'}`,
+                boxShadow: active ? '0 0 0 4px rgba(201,168,76,0.15)' : 'none',
+              }}
+            >
+              <Icon
+                size={13}
+                strokeWidth={2}
+                style={{ color: done ? '#fff' : '#b5b0a8' }}
+              />
             </div>
-            {i < STEPS.length - 1 && (
-              <div className={`flex-1 h-px mx-1 mb-4 ${i < current ? 'bg-[#c9a84c]' : 'bg-stone-200'}`} />
-            )}
+            <span
+              className="text-[0.6rem] font-semibold tracking-wide text-center leading-tight"
+              style={{ color: done ? '#92742a' : '#b5b0a8' }}
+            >
+              {STEP_LABELS[i]}
+            </span>
           </div>
         );
       })}
@@ -106,34 +171,22 @@ function ProgressSteps({ status }: { status: string }) {
   );
 }
 
-function ShippingBadge({ order }: { order: Order }) {
-  const carrier = order.shippingCarrier ?? (order.fedex ? 'FedEx' : null);
-  if (!carrier) return null;
-  return (
-    <div className="flex items-center gap-2 text-[0.72rem] text-stone-500">
-      <span className="font-semibold text-stone-700">{carrier}</span>
-      {order.shippingService && <span className="text-stone-400">· {order.shippingService}</span>}
-      {order.shippingCost > 0 && (
-        <span className="ml-auto font-medium text-stone-600">${order.shippingCost.toFixed(2)}</span>
-      )}
-    </div>
-  );
-}
-
-// ─── Shipment Status Panel (shown on order card) ──────────────────────────────
 function ShipmentPanel({ order }: { order: Order }) {
-  const [expanded, setExpanded] = useState(false);
-  const trackingNumber = order.trackingNumber ?? order.fedex?.trackingNumber ?? null;
+  const [tracking, setTracking] = useState(false);
+  const tn     = order.trackingNumber ?? order.fedex?.trackingNumber ?? null;
   const carrier = order.shippingCarrier ?? (order.fedex ? 'FedEx' : null);
 
-  if (!order.shippingRateId && !trackingNumber) {
+  if (!order.shippingRateId && !tn) {
     if (['paid', 'processing'].includes(order.status)) {
       return (
-        <div className="border-t border-stone-100 px-5 py-3 bg-amber-50/60">
-          <div className="flex items-center gap-2 text-[0.72rem] text-amber-700">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            Your order is being prepared for shipment. A tracking number will appear here soon.
-          </div>
+        <div
+          className="px-6 py-3.5 flex items-center gap-3"
+          style={{ background: '#fffdf5', borderTop: '1px solid #f0ead8' }}
+        >
+          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse" style={{ background: '#c9a84c' }} />
+          <p className="text-xs" style={{ color: '#92742a' }}>
+            Preparing your shipment — tracking info will appear here once dispatched.
+          </p>
         </div>
       );
     }
@@ -141,66 +194,93 @@ function ShipmentPanel({ order }: { order: Order }) {
   }
 
   return (
-    <div className="border-t border-stone-100">
-      {/* Shipping summary row */}
-      <div className="px-5 py-3 bg-stone-50/60">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+    <div style={{ borderTop: '1px solid #ede9e0' }}>
+      <div className="px-6 py-4" style={{ background: '#fafaf8' }}>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
             {carrier && (
-              <span className="text-[0.68rem] font-bold text-stone-600 uppercase tracking-wider">{carrier}</span>
+              <span
+                className="text-[0.65rem] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md"
+                style={{ background: '#1a1814', color: '#c9a84c', letterSpacing: '0.12em' }}
+              >
+                {carrier}
+              </span>
             )}
             {order.shippingService && (
-              <span className="text-[0.68rem] text-stone-400">{order.shippingService}</span>
+              <span className="text-xs" style={{ color: '#9c9690' }}>{order.shippingService}</span>
             )}
-            {trackingNumber && (
-              <span className="font-mono text-[0.68rem] text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
-                {trackingNumber}
-              </span>
+            {tn && (
+              <div className="flex items-center gap-1.5">
+                <Tag size={11} style={{ color: '#c9a84c' }} />
+                <span className="font-mono text-[0.7rem] font-medium" style={{ color: '#5c5852' }}>{tn}</span>
+              </div>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {order.shippingEstimatedDelivery && !trackingNumber && (
-              <span className="text-[0.65rem] text-stone-400">
-                Est. {order.shippingEstimatedDelivery}
-              </span>
-            )}
             {order.labelUrl && (
-              <a href={order.labelUrl} target="_blank" rel="noopener noreferrer"
-                className="text-[0.65rem] font-medium text-[#c9a84c] hover:underline flex items-center gap-1">
-                🖨 Label
+              <a
+                href={order.labelUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-opacity hover:opacity-75"
+                style={{ background: '#ede9e0', color: '#5c5852' }}
+              >
+                <Printer size={12} /> Label
               </a>
             )}
-            {trackingNumber && (
-              <button onClick={() => setExpanded(e => !e)}
-                className="text-[0.68rem] font-semibold px-3 py-1 rounded-full border transition-colors"
-                style={expanded
-                  ? { background: '#1a1714', color: '#fff', borderColor: '#1a1714' }
-                  : { background: '#fff', color: '#5a5249', borderColor: '#ede9e1' }}>
-                {expanded ? 'Hide' : 'Track Package'}
+            {tn && (
+              <button
+                onClick={() => setTracking(t => !t)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-4 py-1.5 rounded-lg transition-all active:scale-95"
+                style={
+                  tracking
+                    ? { background: '#1a1814', color: '#c9a84c' }
+                    : { background: '#c9a84c', color: '#fff' }
+                }
+              >
+                <Truck size={12} />
+                {tracking ? 'Close tracking' : 'Track package'}
               </button>
             )}
           </div>
         </div>
 
-        {/* Delivery estimate */}
-        {order.shippingEstimatedDelivery && trackingNumber && (
-          <p className="text-[0.65rem] text-stone-400 mt-1.5">
-            📦 Estimated delivery: <span className="font-medium text-stone-600">{order.shippingEstimatedDelivery}</span>
-          </p>
-        )}
-        {order.shippedAt && (
-          <p className="text-[0.65rem] text-stone-400 mt-0.5">
-            Shipped on {new Date(order.shippedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          </p>
+        {(order.shippingEstimatedDelivery || order.shippedAt) && (
+          <div className="flex items-center gap-4 mt-3 flex-wrap">
+            {order.shippingEstimatedDelivery && (
+              <div className="flex items-center gap-1.5">
+                <Clock size={11} style={{ color: '#9c9690' }} />
+                <span className="text-[0.7rem]" style={{ color: '#9c9690' }}>
+                  Est. delivery:{' '}
+                  <span className="font-semibold" style={{ color: '#5c5852' }}>
+                    {order.shippingEstimatedDelivery}
+                  </span>
+                </span>
+              </div>
+            )}
+            {order.shippedAt && (
+              <div className="flex items-center gap-1.5">
+                <Package size={11} style={{ color: '#9c9690' }} />
+                <span className="text-[0.7rem]" style={{ color: '#9c9690' }}>
+                  Shipped{' '}
+                  {new Date(order.shippedAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Live tracking widget */}
-      {expanded && trackingNumber && (
-        <div className="px-5 pb-4 pt-2">
+      {tracking && tn && (
+        <div className="px-6 pb-6 pt-1">
           <OrderTracking
-            trackingNumber={trackingNumber}
+            trackingNumber={tn}
             trackingUrl={order.trackingUrl ?? undefined}
+            carrierCode={carrier?.toLowerCase().replace(/\s+/g, '_') ?? undefined}
           />
         </div>
       )}
@@ -208,12 +288,12 @@ function ShipmentPanel({ order }: { order: Order }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main ──────────────────────────────────────────────────────────────────────
 export default function OrdersPage() {
-  const { apiFetch } = useApi();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const { apiFetch }   = useApi();
+  const router         = useRouter();
+  const searchParams   = useSearchParams();
+  const [orders, setOrders]   = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const success = searchParams.get('success');
@@ -228,159 +308,355 @@ export default function OrdersPage() {
   const totalSpent = orders.reduce((sum, o) => sum + o.totalAmount, 0);
   const totalItems = orders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0), 0);
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-32 text-stone-400 text-sm">Loading orders…</div>
-  );
+  // ── Loading ──────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: '#fafaf8' }}>
+        <Loader2 size={28} className="animate-spin" style={{ color: '#c9a84c' }} />
+        <p className="text-sm tracking-wide" style={{ color: '#9c9690' }}>Loading your orders…</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen w-full" style={{ background: '#fafaf8' }}>
 
-      {/* Header */}
-      <div className="px-6 pt-10 pb-6 border-b border-stone-100 flex items-end justify-between">
-        <div>
-          <h1 className="text-4xl font-light text-stone-900 tracking-tight">
-            My <span className="italic text-amber-700">Orders</span>
-          </h1>
-          <p className="text-sm text-stone-400 mt-1.5 tracking-wide">Track and manage your purchases</p>
+      {/* ── Page header ──────────────────────────────────────────────────── */}
+      <div
+        className="w-full border-b"
+        style={{
+          background: 'linear-gradient(180deg, #1a1814 0%, #22201b 100%)',
+          borderColor: '#2d2a24',
+        }}
+      >
+        <div className="w-full px-6 md:px-10 xl:px-16 py-10">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+            <div>
+              <p
+                className="text-[0.6rem] font-bold tracking-[0.25em] uppercase mb-3"
+                style={{ color: '#c9a84c' }}
+              >
+                My Account
+              </p>
+              <h1
+                className="text-4xl md:text-5xl font-light tracking-tight"
+                style={{ fontFamily: 'Cormorant Garamond, serif', color: '#f5f1eb' }}
+              >
+                Orders
+              </h1>
+              <p className="text-sm mt-2" style={{ color: '#6e6a62' }}>
+                {orders.length === 0
+                  ? 'No purchases yet'
+                  : `${orders.length} order${orders.length !== 1 ? 's' : ''} · ${totalItems} item${totalItems !== 1 ? 's' : ''}`}
+              </p>
+            </div>
+
+            {orders.length > 0 && (
+              <div className="flex items-stretch gap-3">
+                {[
+                  { label: 'Total spent',   value: `$${totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, Icon: TrendingUp },
+                  { label: 'Orders',        value: String(orders.length),  Icon: ShoppingBag },
+                  { label: 'Items',         value: String(totalItems),     Icon: Box },
+                ].map(({ label, value, Icon }) => (
+                  <div
+                    key={label}
+                    className="flex flex-col justify-between px-5 py-3.5 rounded-xl"
+                    style={{
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(201,168,76,0.18)',
+                      minWidth: '100px',
+                    }}
+                  >
+                    <Icon size={14} style={{ color: '#c9a84c', opacity: 0.8 }} />
+                    <div className="mt-3">
+                      <p className="text-lg font-light leading-none" style={{ color: '#f5f1eb' }}>{value}</p>
+                      <p className="text-[0.6rem] uppercase tracking-widest mt-1" style={{ color: '#5c5852' }}>{label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <span className="bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium px-3 py-1.5 rounded-full tracking-widest uppercase">
-          {orders.length} {orders.length === 1 ? 'order' : 'orders'}
-        </span>
       </div>
 
-      {/* Success banner */}
+      {/* ── Success banner ───────────────────────────────────────────────── */}
       {success && (
-        <div className="mx-6 mt-5 flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3.5">
-          <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs">✓</div>
-          <p className="text-sm text-green-700 font-medium">Payment successful — your order has been placed. Your shipping label will be generated shortly.</p>
+        <div className="w-full px-6 md:px-10 xl:px-16 pt-6">
+          <div
+            className="flex items-start gap-4 rounded-xl px-5 py-4"
+            style={{ background: '#f0fdf4', border: '1px solid #86efac' }}
+          >
+            <CheckCircle2 size={18} style={{ color: '#16a34a', flexShrink: 0, marginTop: '1px' }} />
+            <div>
+              <p className="text-sm font-semibold" style={{ color: '#15803d' }}>Payment confirmed</p>
+              <p className="text-xs mt-0.5" style={{ color: '#166534' }}>
+                Your order is placed. A tracking number will appear here once your package ships.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
+      {/* ── Empty state ──────────────────────────────────────────────────── */}
       {orders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-32 text-stone-400">
-          <div className="text-5xl mb-4">📦</div>
-          <p className="text-base mb-6">No orders yet</p>
-          <Link href="/products" className="bg-stone-900 text-white text-sm font-medium px-6 py-2.5 rounded-lg hover:bg-stone-800 transition-colors">
-            Browse Products
+        <div className="w-full flex flex-col items-center justify-center py-36 px-6">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
+            style={{ background: '#ede9e0' }}
+          >
+            <Package size={28} style={{ color: '#b5a898' }} />
+          </div>
+          <p className="text-xl font-light mb-1" style={{ fontFamily: 'Cormorant Garamond, serif', color: '#1a1814' }}>
+            No orders yet
+          </p>
+          <p className="text-sm mb-8" style={{ color: '#9c9690' }}>
+            Your purchases will appear here
+          </p>
+          <Link
+            href="/products"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+            style={{ background: '#1a1814', color: '#c9a84c' }}
+          >
+            Explore Collection <ArrowRight size={14} />
           </Link>
         </div>
       ) : (
-        <div className="px-6 pb-12">
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 mt-6 mb-6 rounded-xl overflow-hidden border border-stone-100 divide-x divide-stone-100">
-            {[
-              { label: 'Total spent',     value: `$${totalSpent.toLocaleString()}` },
-              { label: 'Orders placed',   value: orders.length },
-              { label: 'Items purchased', value: totalItems },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-stone-50 px-5 py-4">
-                <p className="text-xs text-stone-400 uppercase tracking-widest mb-1">{label}</p>
-                <p className="text-2xl font-light text-stone-800">{value}</p>
-              </div>
-            ))}
-          </div>
+        /* ── Order list ────────────────────────────────────────────────── */
+        <div className="w-full px-6 md:px-10 xl:px-16 py-8 flex flex-col gap-5">
+          {orders.map((order) => {
+            const isOpen = expanded === order._id;
+            const date   = new Date(order.createdAt).toLocaleDateString('en-US', {
+              month: 'long', day: 'numeric', year: 'numeric',
+            });
 
-          {/* Order cards */}
-          <div className="flex flex-col gap-4">
-            {orders.map((order, oi) => (
-              <div key={order._id} className="border border-stone-100 rounded-2xl overflow-hidden hover:border-stone-200 hover:shadow-sm transition-all">
+            return (
+              <div
+                key={order._id}
+                className="w-full rounded-2xl overflow-hidden transition-shadow duration-200"
+                style={{
+                  background: '#fff',
+                  border: '1px solid #e5e2db',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                }}
+              >
+                {/* ── Card header ─────────────────────────────────────── */}
+                <div className="px-6 pt-6 pb-5">
+                  <div className="flex items-start justify-between gap-4">
 
-                {/* Card header */}
-                <div className="px-5 pt-5 pb-4 flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-mono text-stone-400 tracking-wide uppercase">
-                      #{order._id.slice(-12)}
-                    </p>
-                    <p className="text-sm text-stone-500 mt-1">
-                      {new Date(order.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                    </p>
+                    {/* Left: ID + date + status */}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span
+                          className="font-mono text-[0.65rem] font-bold tracking-widest uppercase px-2 py-0.5 rounded"
+                          style={{ background: '#faf5e8', color: '#92742a', border: '1px solid #f0e6c0' }}
+                        >
+                          #{order._id.slice(-10)}
+                        </span>
+                        <span className="text-xs" style={{ color: '#9c9690' }}>{date}</span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <StatusBadge status={order.status} />
+                        {order.paymentStatus && order.paymentStatus !== order.status && (
+                          <StatusBadge status={order.paymentStatus} />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right: Total */}
+                    <div className="text-right flex-shrink-0">
+                      <p
+                        className="text-2xl font-light"
+                        style={{ fontFamily: 'Cormorant Garamond, serif', color: '#1a1814' }}
+                      >
+                        ${order.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[0.65rem] mt-0.5 uppercase tracking-wide" style={{ color: '#b5b0a8' }}>
+                        {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-light text-stone-900">${order.totalAmount.toLocaleString()}</p>
-                    <p className="text-xs text-stone-400 mt-0.5">order total</p>
+
+                  {/* Progress track */}
+                  <div className="mt-5">
+                    <ProgressTrack status={order.status} />
                   </div>
                 </div>
 
-                {/* Progress bar */}
-                <div className="px-5 py-3 border-t border-stone-50">
-                  <ProgressSteps status={order.status} />
-                </div>
+                {/* ── Expand toggle ────────────────────────────────────── */}
+                <button
+                  onClick={() => setExpanded(isOpen ? null : order._id)}
+                  className="w-full flex items-center justify-between px-6 py-3.5 transition-colors text-left"
+                  style={{
+                    borderTop: '1px solid #ede9e0',
+                    borderBottom: isOpen ? '1px solid #ede9e0' : 'none',
+                    background: isOpen ? '#fafaf8' : 'transparent',
+                  }}
+                >
+                  <span className="text-xs font-semibold" style={{ color: '#5c5852' }}>
+                    {isOpen ? 'Hide details' : 'View order details'}
+                  </span>
+                  <ChevronDown
+                    size={15}
+                    style={{
+                      color: '#9c9690',
+                      transition: 'transform 0.2s',
+                      transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    }}
+                  />
+                </button>
 
-                {/* Status + carrier */}
-                <div className="px-5 py-2.5 border-t border-stone-50 bg-stone-50/40 flex items-center justify-between gap-3">
-                  <StatusPill status={order.status} />
-                  <ShippingBadge order={order} />
-                </div>
+                {/* ── Expanded detail ──────────────────────────────────── */}
+                {isOpen && (
+                  <div className="px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-8" style={{ background: '#fafaf8' }}>
 
-                {/* Items — collapsed by default, expand on click */}
-                <div className="border-t border-stone-50">
-                  <button
-                    onClick={() => setExpanded(expanded === order._id ? null : order._id)}
-                    className="w-full px-5 py-3 flex items-center justify-between text-left hover:bg-stone-50/60 transition-colors">
-                    <span className="text-[0.72rem] font-medium text-stone-500">
-                      {order.items.length} item{order.items.length !== 1 ? 's' : ''}
-                    </span>
-                    <span className="text-[0.65rem] text-stone-400">{expanded === order._id ? '▲ Hide' : '▼ View items'}</span>
-                  </button>
-
-                  {expanded === order._id && (
-                    <div className="px-5 pb-4 flex flex-col gap-3 border-t border-stone-50">
-
-                      {order.items.map((item, ii) => (
-                        <div key={ii} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-lg bg-stone-100 flex items-center justify-center text-base flex-shrink-0">
-                              {ITEM_EMOJIS[(oi + ii) % ITEM_EMOJIS.length]}
+                    {/* Items */}
+                    <div>
+                      <p
+                        className="text-[0.6rem] font-bold uppercase tracking-widest mb-4"
+                        style={{ color: '#b5b0a8' }}
+                      >
+                        Items ordered
+                      </p>
+                      <div className="flex flex-col divide-y" style={{ '--tw-divide-opacity': 1 } as any}>
+                        {order.items.map((item, ii) => (
+                          <div key={ii} className="flex items-center justify-between py-3 gap-3 first:pt-0 last:pb-0">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div
+                                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                                style={{ background: '#ede9e0' }}
+                              >
+                                <Package size={15} style={{ color: '#8a7d6e' }} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate" style={{ color: '#1a1814' }}>{item.name}</p>
+                                <p className="text-xs mt-0.5" style={{ color: '#9c9690' }}>Qty {item.quantity}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-sm text-stone-700">{item.name}</p>
-                              <p className="text-xs text-stone-400 mt-0.5">Qty {item.quantity}</p>
-                            </div>
+                            <p className="text-sm font-semibold flex-shrink-0" style={{ color: '#1a1814' }}>
+                              ${item.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </p>
                           </div>
-                          <p className="text-sm font-medium text-stone-600">${item.price.toLocaleString()}</p>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
 
-                      {/* Order totals */}
-                      <div className="pt-3 border-t border-stone-100 space-y-1.5 text-[0.72rem]">
+                      {/* Totals breakdown */}
+                      <div
+                        className="mt-4 rounded-xl overflow-hidden"
+                        style={{ border: '1px solid #e5e2db' }}
+                      >
                         {[
                           { label: 'Subtotal',  value: `$${(order.subtotal ?? order.totalAmount - order.shippingCost - order.tax).toFixed(2)}` },
                           { label: 'Shipping',  value: order.shippingCost > 0 ? `$${order.shippingCost.toFixed(2)}` : 'Free' },
                           { label: 'Tax',       value: `$${(order.tax ?? 0).toFixed(2)}` },
                         ].map(({ label, value }) => (
-                          <div key={label} className="flex justify-between text-stone-500">
-                            <span>{label}</span><span>{value}</span>
+                          <div
+                            key={label}
+                            className="flex justify-between items-center px-4 py-2.5 text-xs"
+                            style={{ borderBottom: '1px solid #ede9e0', color: '#9c9690' }}
+                          >
+                            <span>{label}</span>
+                            <span>{value}</span>
                           </div>
                         ))}
-                        <div className="flex justify-between font-semibold text-stone-800 pt-1 border-t border-stone-100">
-                          <span>Total</span><span>${order.totalAmount.toLocaleString()}</span>
+                        <div
+                          className="flex justify-between items-center px-4 py-3"
+                          style={{ background: '#fff' }}
+                        >
+                          <span className="text-sm font-semibold" style={{ color: '#1a1814' }}>Total</span>
+                          <span className="text-sm font-bold" style={{ color: '#1a1814' }}>
+                            ${order.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Ship-to address */}
+                    {/* Shipping address + payment */}
+                    <div className="flex flex-col gap-5">
                       {order.shippingAddress && (
-                        <div className="pt-2 border-t border-stone-100">
-                          <p className="text-[0.6rem] uppercase tracking-widest text-stone-400 font-semibold mb-1.5">Ship To</p>
-                          <div className="text-[0.72rem] text-stone-500 leading-relaxed">
-                            <p className="font-medium text-stone-700">{order.shippingAddress.fullName}</p>
-                            <p>{order.shippingAddress.addressLine1}</p>
-                            {order.shippingAddress.addressLine2 && <p>{order.shippingAddress.addressLine2}</p>}
-                            <p>{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}</p>
-                            <p>{order.shippingAddress.country}</p>
+                        <div>
+                          <p
+                            className="text-[0.6rem] font-bold uppercase tracking-widest mb-3"
+                            style={{ color: '#b5b0a8' }}
+                          >
+                            Ship to
+                          </p>
+                          <div
+                            className="rounded-xl px-4 py-4"
+                            style={{ background: '#fff', border: '1px solid #e5e2db' }}
+                          >
+                            <div className="flex items-start gap-3">
+                              <MapPin size={14} style={{ color: '#c9a84c', flexShrink: 0, marginTop: '1px' }} />
+                              <div className="text-xs leading-relaxed" style={{ color: '#5c5852' }}>
+                                <p className="font-semibold text-sm mb-0.5" style={{ color: '#1a1814' }}>
+                                  {order.shippingAddress.fullName}
+                                </p>
+                                <p>{order.shippingAddress.addressLine1}</p>
+                                {order.shippingAddress.addressLine2 && (
+                                  <p>{order.shippingAddress.addressLine2}</p>
+                                )}
+                                <p>
+                                  {order.shippingAddress.city}, {order.shippingAddress.state}{' '}
+                                  {order.shippingAddress.postalCode}
+                                </p>
+                                <p>{order.shippingAddress.country}</p>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
+
+                      <div>
+                        <p
+                          className="text-[0.6rem] font-bold uppercase tracking-widest mb-3"
+                          style={{ color: '#b5b0a8' }}
+                        >
+                          Payment
+                        </p>
+                        <div
+                          className="rounded-xl px-4 py-4 flex items-center gap-3"
+                          style={{ background: '#fff', border: '1px solid #e5e2db' }}
+                        >
+                          <CreditCard size={15} style={{ color: '#c9a84c' }} />
+                          <div className="text-xs" style={{ color: '#5c5852' }}>
+                            <span className="capitalize font-medium" style={{ color: '#1a1814' }}>
+                              {order.paymentMethod}
+                            </span>
+                            <span className="mx-2" style={{ color: '#d5d0c8' }}>·</span>
+                            <span
+                              className="capitalize px-2 py-0.5 rounded"
+                              style={{
+                                background: order.paymentStatus === 'paid' ? '#f0fdf4' : '#fef9ec',
+                                color: order.paymentStatus === 'paid' ? '#15803d' : '#92400e',
+                              }}
+                            >
+                              {order.paymentStatus}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {order.trackingUrl && (
+                        <a
+                          href={order.trackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-xs font-semibold transition-opacity hover:opacity-75 self-start"
+                          style={{ color: '#c9a84c' }}
+                        >
+                          <ExternalLink size={12} /> View on carrier website
+                        </a>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                {/* Shipment panel — always shown */}
+                {/* ── Shipment / Tracking panel ────────────────────────── */}
                 <ShipmentPanel order={order} />
-
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
     </div>

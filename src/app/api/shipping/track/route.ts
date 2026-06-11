@@ -28,6 +28,17 @@ export async function POST(req: NextRequest) {
     return apiSuccess(tracking);
   } catch (err: any) {
     console.error('[shipping/track]', err);
-    return apiError(err.message ?? 'Tracking failed', 500);
+
+    // Surface a friendly message for rate-limit errors instead of a raw 500
+    const isTooManyRequests =
+      err?.message?.toLowerCase().includes('too many requests') ||
+      err?.statusCode === 429;
+
+    const message = isTooManyRequests
+      ? 'The carrier is temporarily rate-limiting tracking requests. Please wait a moment and try again.'
+      : (err.message ?? 'Tracking failed');
+
+    const status = isTooManyRequests ? 429 : 500;
+    return apiError(message, status);
   }
 }
