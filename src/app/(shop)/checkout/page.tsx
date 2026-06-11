@@ -322,6 +322,7 @@ export default function CheckoutPage() {
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponMsg, setCouponMsg] = useState('');
   const [couponLoading, setCouponLoading] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   useEffect(() => {
     apiFetch('/api/cart')
@@ -461,6 +462,7 @@ export default function CheckoutPage() {
   };
 
   const onPayPalApprove = async (data: { orderID: string }) => {
+    setPaymentProcessing(true);
     try {
       await apiFetch('/api/payment/paypal/capture', {
         method: 'POST',
@@ -468,6 +470,7 @@ export default function CheckoutPage() {
       });
       router.push('/orders?success=true');
     } catch (err) {
+      setPaymentProcessing(false);
       setApiError(err instanceof Error ? err.message : 'Payment capture failed');
     }
   };
@@ -527,6 +530,47 @@ export default function CheckoutPage() {
     // PayPalButtons inside step 3 will work because the SDK is already loaded.
     <PayPalScriptProvider options={paypalOptions}>
       <>
+        {/* ── Payment Processing Overlay ────────────────────────────────────── */}
+        {paymentProcessing && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(15, 15, 20, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24,
+          }}>
+            <div style={{ position: 'relative', width: 72, height: 72 }}>
+              <svg width="72" height="72" viewBox="0 0 72 72" style={{ animation: 'spin 1s linear infinite', position: 'absolute', inset: 0 }}>
+                <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(201,168,76,0.15)" strokeWidth="4" />
+                <circle cx="36" cy="36" r="30" fill="none" stroke="#c9a84c" strokeWidth="4" strokeLinecap="round" strokeDasharray="60 130" />
+              </svg>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#c9a84c" opacity="0.9"/>
+                </svg>
+              </div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: 20, fontWeight: 600, color: '#f5f1eb', fontFamily: 'Cormorant Garamond, serif', letterSpacing: '-0.3px', marginBottom: 8 }}>
+                Confirming your payment…
+              </p>
+              <p style={{ fontSize: 13, color: '#8a8278', maxWidth: 280 }}>
+                Please wait while we verify your transaction and prepare your order.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{
+                  width: 6, height: 6, borderRadius: '50%', background: '#c9a84c',
+                  animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                  opacity: 0.6,
+                }} />
+              ))}
+            </div>
+            <style>{`
+              @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 0.4; } 50% { transform: scale(1.4); opacity: 1; } }
+            `}</style>
+          </div>
+        )}
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
           @keyframes spin { to { transform: rotate(360deg); } }
