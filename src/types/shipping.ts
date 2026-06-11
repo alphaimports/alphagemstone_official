@@ -11,6 +11,7 @@ export interface ShippingAddress {
   country:     string;        // "US"
   phone?:      string;
   email?:      string;
+  residential?: boolean;   // hint for ShipEngine residential surcharge detection
 }
 
 export interface PackageDimensions {

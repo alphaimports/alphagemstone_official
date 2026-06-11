@@ -1,198 +1,329 @@
 'use client';
 
 /**
- * AdminOrderShipping
- * ──────────────────
- * Drop into your admin order detail page to:
- *   - Show the shipping rate the customer selected at checkout
- *   - Purchase a ShipEngine label with one click
- *   - Display tracking number + print label PDF link once purchased
- *
- * Usage:
- *   import AdminOrderShipping from '@/components/admin/AdminOrderShipping';
- *   <AdminOrderShipping order={order} />
+ * AdminOrderShipping — ShipEngine label + tracking panel
+ * Drop into the admin order detail to:
+ *   • See the rate the customer selected at checkout
+ *   • Purchase the ShipEngine label with one click
+ *   • View tracking number, print label PDF, live-track the package
  */
 
 import { useState } from 'react';
+import {
+  Package, Printer, MapPin, CheckCircle, AlertCircle,
+  ExternalLink, RefreshCw, Clock, Truck,
+} from 'lucide-react';
 
-interface OrderShippingData {
-  _id:                      string;
-  shippingCarrier?:         string | null;
-  shippingService?:         string | null;
-  shippingRateId?:          string | null;
-  shippingRate?:            number;
+export interface OrderShippingData {
+  _id:                        string;
+  shippingCarrier?:           string | null;
+  shippingService?:           string | null;
+  shippingRateId?:            string | null;
+  shippingRate?:              number;
   shippingEstimatedDelivery?: string | null;
-  trackingNumber?:          string | null;
-  labelId?:                 string | null;
-  labelUrl?:                string | null;
-  shippedAt?:               string | null;
-  status:                   string;
-  paymentStatus:            string;
+  shippingEstimatedDays?:     number | null;
+  trackingNumber?:            string | null;
+  trackingUrl?:               string | null;
+  labelId?:                   string | null;
+  labelUrl?:                  string | null;
+  shippedAt?:                 string | null;
+  status:                     string;
+  paymentStatus:              string;
+}
+
+interface TrackingEvent {
+  timestamp:   string;
+  description: string;
+  location:    string;
+}
+
+interface TrackingInfo {
+  carrier:           string;
+  trackingNumber:    string;
+  status:            string;
+  currentLocation:   string;
+  lastUpdate:        string;
+  estimatedDelivery: string | null;
+  events:            TrackingEvent[];
+  deliveredAt?:      string;
 }
 
 interface Props {
-  order: OrderShippingData;
+  order:     OrderShippingData;
+  authToken?: string;
+  onUpdate?: (updated: Partial<OrderShippingData>) => void;
 }
 
-export default function AdminOrderShipping({ order }: Props) {
+export default function AdminOrderShipping({ order, authToken, onUpdate }: Props) {
   const [trackingNumber, setTrackingNumber] = useState(order.trackingNumber ?? '');
   const [labelUrl,       setLabelUrl]       = useState(order.labelUrl ?? '');
   const [shippedAt,      setShippedAt]      = useState(order.shippedAt ?? '');
-  const [loading,        setLoading]        = useState(false);
+  const [labelId,        setLabelId]        = useState(order.labelId ?? '');
+
+  const [labelLoading,   setLabelLoading]   = useState(false);
+  const [trackLoading,   setTrackLoading]   = useState(false);
+  const [trackOpen,      setTrackOpen]      = useState(false);
+  const [tracking,       setTracking]       = useState<TrackingInfo | null>(null);
   const [error,          setError]          = useState<string | null>(null);
   const [success,        setSuccess]        = useState<string | null>(null);
 
-  const labelAlreadyPurchased = Boolean(trackingNumber);
+  const labelPurchased = Boolean(trackingNumber);
+  const canPurchase    = order.paymentStatus === 'completed' && Boolean(order.shippingRateId) && !labelPurchased;
 
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+  // ── Purchase label ────────────────────────────────────────────────────────
   async function handlePurchaseLabel() {
-    setLoading(true);
+    setLabelLoading(true);
     setError(null);
     setSuccess(null);
     try {
-      const token =
-        typeof window !== 'undefined'
-          ? localStorage.getItem('auth_token') ?? ''
-          : '';
-
-      const res = await fetch(
-        `/api/admin/orders/${order._id}/purchase-label`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({}),
-        }
-      );
+      const res  = await fetch(`/api/admin/orders/${order._id}/purchase-label`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed to purchase label');
+      if (!res.ok) throw new Error(data.error ?? data.message ?? 'Failed to purchase label');
 
-      const updated = data.data?.order;
-      if (updated?.trackingNumber) {
-        setTrackingNumber(updated.trackingNumber);
-        setLabelUrl(updated.labelUrl ?? '');
-        setShippedAt(updated.shippedAt ?? new Date().toISOString());
-        setSuccess(`Label purchased! Tracking: ${updated.trackingNumber}`);
-      }
+      const updated = data.data?.order ?? data.data ?? {};
+      const tn = updated.trackingNumber ?? '';
+      const lu = updated.labelUrl       ?? '';
+      const sa = updated.shippedAt      ?? new Date().toISOString();
+      const li = updated.labelId        ?? '';
+
+      setTrackingNumber(tn);
+      setLabelUrl(lu);
+      setShippedAt(sa);
+      setLabelId(li);
+      setSuccess('Label purchased successfully.');
+      onUpdate?.({ trackingNumber: tn, labelUrl: lu, shippedAt: sa, labelId: li });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
-      setLoading(false);
+      setLabelLoading(false);
     }
   }
 
-  const canPurchase =
-    order.paymentStatus === 'completed' &&
-    Boolean(order.shippingRateId) &&
-    !labelAlreadyPurchased;
+  // ── Live tracking ─────────────────────────────────────────────────────────
+  async function handleTrack() {
+    if (tracking) { setTrackOpen(o => !o); return; }
+    setTrackLoading(true);
+    setError(null);
+    try {
+      const res  = await fetch('/api/shipping/track', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ trackingNumber }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? data.message ?? 'Failed to fetch tracking');
+      setTracking(data.data);
+      setTrackOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setTrackLoading(false);
+    }
+  }
 
   return (
-    <div className="space-y-5 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <h3 className="text-lg font-semibold text-gray-800">Shipping</h3>
+    <div className="rounded-xl border border-[#ede9e1] bg-white overflow-hidden">
 
-      {/* Feedback banners */}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-[#ede9e1] bg-[#faf9f7]">
+        <div className="flex items-center gap-2">
+          <Truck size={14} className="text-[#c9a84c]" strokeWidth={2} />
+          <span className="text-[0.7rem] font-bold uppercase tracking-[0.15em] text-[#1a1714]">
+            Shipment
+          </span>
         </div>
-      )}
-      {success && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          {success}
-        </div>
-      )}
-
-      {/* Rate selection summary */}
-      <dl className="space-y-2 text-sm">
-        {order.shippingCarrier && (
-          <div className="flex justify-between">
-            <dt className="text-gray-500">Carrier</dt>
-            <dd className="font-medium text-gray-900">{order.shippingCarrier}</dd>
-          </div>
-        )}
-        {order.shippingService && (
-          <div className="flex justify-between">
-            <dt className="text-gray-500">Service</dt>
-            <dd className="text-gray-900">{order.shippingService}</dd>
-          </div>
-        )}
-        {order.shippingRate != null && (
-          <div className="flex justify-between">
-            <dt className="text-gray-500">Quoted Rate</dt>
-            <dd className="text-gray-900">${order.shippingRate.toFixed(2)}</dd>
-          </div>
-        )}
-        {order.shippingEstimatedDelivery && (
-          <div className="flex justify-between">
-            <dt className="text-gray-500">Est. Delivery</dt>
-            <dd className="text-gray-900">{order.shippingEstimatedDelivery}</dd>
-          </div>
-        )}
-        {order.shippingRateId && (
-          <div className="flex justify-between">
-            <dt className="text-gray-500">Rate ID</dt>
-            <dd className="font-mono text-xs text-gray-500">{order.shippingRateId}</dd>
-          </div>
-        )}
-      </dl>
-
-      {/* Label + tracking info */}
-      {labelAlreadyPurchased && (
-        <dl className="space-y-2 border-t border-gray-100 pt-4 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-gray-500">Tracking #</dt>
-            <dd className="font-mono font-medium text-gray-900">{trackingNumber}</dd>
-          </div>
-          {shippedAt && (
-            <div className="flex justify-between">
-              <dt className="text-gray-500">Label Created</dt>
-              <dd className="text-gray-900">
-                {new Date(shippedAt).toLocaleString()}
-              </dd>
-            </div>
-          )}
-        </dl>
-      )}
-
-      {/* Actions */}
-      <div className="flex flex-wrap gap-3 pt-1">
-        {!labelAlreadyPurchased && (
-          <button
-            onClick={handlePurchaseLabel}
-            disabled={loading || !canPurchase}
-            className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {loading ? 'Purchasing…' : 'Purchase ShipEngine Label'}
-          </button>
-        )}
-
-        {labelUrl && (
-          <a
-            href={labelUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-center text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          >
-            Print Label (PDF)
-          </a>
+        {labelPurchased && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[0.62rem] font-semibold"
+            style={{ background: '#edf7ed', color: '#2d6b2d', border: '1px solid #80c880' }}>
+            <CheckCircle size={9} strokeWidth={2.5} /> Label Purchased
+          </span>
         )}
       </div>
 
-      {/* Warnings */}
-      {!order.shippingRateId && !labelAlreadyPurchased && (
-        <p className="text-xs text-amber-600">
-          No shipping rate was selected at checkout. Add a tracking number
-          manually via the order status panel, or have the customer re-checkout
-          with a shipping method selected.
-        </p>
-      )}
-      {order.paymentStatus !== 'completed' && !labelAlreadyPurchased && (
-        <p className="text-xs text-red-500">
-          Payment not yet completed — label cannot be purchased until payment is
-          captured.
-        </p>
-      )}
+      <div className="p-5 space-y-5">
+
+        {/* ── Feedback banners ── */}
+        {error && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-red-100 bg-red-50 px-4 py-3">
+            <AlertCircle size={14} className="text-red-400 mt-0.5 shrink-0" strokeWidth={2} />
+            <p className="text-[0.75rem] text-red-700">{error}</p>
+          </div>
+        )}
+        {success && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-green-100 bg-green-50 px-4 py-3">
+            <CheckCircle size={14} className="text-green-500 mt-0.5 shrink-0" strokeWidth={2} />
+            <p className="text-[0.75rem] text-green-700">{success}</p>
+          </div>
+        )}
+
+        {/* ── Rate summary ── */}
+        <div>
+          <p className="text-[0.6rem] uppercase tracking-[0.18em] text-[#a09a90] font-semibold mb-3">
+            Selected Rate
+          </p>
+          {order.shippingRateId ? (
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+              {[
+                { label: 'Carrier',      value: order.shippingCarrier },
+                { label: 'Service',      value: order.shippingService },
+                { label: 'Quoted cost',  value: order.shippingRate != null ? `$${order.shippingRate.toFixed(2)}` : null },
+                { label: 'Est. delivery',value: order.shippingEstimatedDelivery ?? (order.shippingEstimatedDays ? `${order.shippingEstimatedDays} days` : null) },
+                { label: 'Rate ID',      value: order.shippingRateId, mono: true, muted: true },
+              ].filter(r => r.value).map(({ label, value, mono, muted }) => (
+                <div key={label} className="flex flex-col gap-0.5">
+                  <span className="text-[0.6rem] uppercase tracking-widest text-[#a09a90]">{label}</span>
+                  <span className={`text-[0.75rem] font-medium ${muted ? 'font-mono text-[0.65rem] text-[#b0a898]' : 'text-[#1a1714]'} ${mono ? 'font-mono' : ''}`}>
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[0.75rem] text-[#c4bdb2] italic">
+              No shipping rate was selected at checkout.
+            </p>
+          )}
+        </div>
+
+        {/* ── Label / tracking info (post-purchase) ── */}
+        {labelPurchased && (
+          <div className="rounded-lg border border-[#ede9e1] bg-[#faf9f7] p-4 space-y-3">
+            <p className="text-[0.6rem] uppercase tracking-[0.18em] text-[#a09a90] font-semibold">
+              Label Details
+            </p>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+              {[
+                { label: 'Tracking #',    value: trackingNumber, mono: true, highlight: true },
+                { label: 'Label ID',      value: labelId,        mono: true },
+                { label: 'Purchased at',  value: shippedAt ? new Date(shippedAt).toLocaleString() : null },
+              ].filter(r => r.value).map(({ label, value, mono, highlight }) => (
+                <div key={label} className="flex flex-col gap-0.5">
+                  <span className="text-[0.6rem] uppercase tracking-widest text-[#a09a90]">{label}</span>
+                  <span className={`text-[0.75rem] font-medium ${mono ? 'font-mono' : ''} ${highlight ? 'text-[#1a1714]' : 'text-[#5a5249]'}`}>
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Actions ── */}
+        <div className="flex flex-wrap gap-2.5">
+          {!labelPurchased && (
+            <button
+              onClick={handlePurchaseLabel}
+              disabled={labelLoading || !canPurchase}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[0.75rem] font-semibold text-white transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ background: '#1a1714' }}
+            >
+              <Package size={13} strokeWidth={2} />
+              {labelLoading ? 'Purchasing…' : 'Purchase Label'}
+            </button>
+          )}
+
+          {labelUrl && (
+            <a
+              href={labelUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[0.75rem] font-semibold border transition-colors hover:bg-[#faf9f7]"
+              style={{ borderColor: '#ede9e1', color: '#5a5249' }}
+            >
+              <Printer size={13} strokeWidth={2} /> Print Label
+            </a>
+          )}
+
+          {trackingNumber && (
+            <button
+              onClick={handleTrack}
+              disabled={trackLoading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[0.75rem] font-semibold border transition-colors hover:bg-[#faf9f7] disabled:opacity-40"
+              style={{ borderColor: '#ede9e1', color: '#5a5249' }}
+            >
+              {trackLoading
+                ? <><RefreshCw size={13} strokeWidth={2} className="animate-spin" /> Loading…</>
+                : <><MapPin size={13} strokeWidth={2} /> {trackOpen ? 'Hide Tracking' : 'Live Tracking'}</>
+              }
+            </button>
+          )}
+
+          {order.trackingUrl && (
+            <a
+              href={order.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[0.75rem] font-semibold border transition-colors hover:bg-[#faf9f7]"
+              style={{ borderColor: '#ede9e1', color: '#5a5249' }}
+            >
+              <ExternalLink size={13} strokeWidth={2} /> Carrier Site
+            </a>
+          )}
+        </div>
+
+        {/* ── Warnings ── */}
+        {!order.shippingRateId && !labelPurchased && (
+          <p className="text-[0.7rem] text-amber-600 flex items-center gap-1.5">
+            <AlertCircle size={12} strokeWidth={2} />
+            No shipping rate selected at checkout — ask customer to re-checkout, or enter tracking manually.
+          </p>
+        )}
+        {order.paymentStatus !== 'completed' && !labelPurchased && (
+          <p className="text-[0.7rem] text-red-500 flex items-center gap-1.5">
+            <AlertCircle size={12} strokeWidth={2} />
+            Payment not completed — label cannot be purchased until payment is captured.
+          </p>
+        )}
+
+        {/* ── Live tracking timeline ── */}
+        {trackOpen && tracking && (
+          <div className="rounded-lg border border-[#ede9e1] bg-[#faf9f7] p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[0.72rem] font-semibold text-[#1a1714]">
+                {tracking.status}
+              </span>
+              {tracking.estimatedDelivery && !tracking.deliveredAt && (
+                <span className="text-[0.65rem] text-[#a09a90] flex items-center gap-1">
+                  <Clock size={10} /> Est. {tracking.estimatedDelivery}
+                </span>
+              )}
+              {tracking.deliveredAt && (
+                <span className="text-[0.65rem] text-green-600 flex items-center gap-1 font-semibold">
+                  <CheckCircle size={10} /> Delivered {tracking.deliveredAt}
+                </span>
+              )}
+            </div>
+
+            {tracking.currentLocation && (
+              <p className="text-[0.7rem] text-[#6b6560] flex items-center gap-1.5">
+                <MapPin size={11} strokeWidth={1.8} className="text-[#c9a84c]" />
+                {tracking.currentLocation}
+              </p>
+            )}
+
+            {tracking.events.length > 0 && (
+              <ol className="relative border-l border-[#ede9e1] space-y-3 ml-2 pt-1">
+                {tracking.events.slice(0, 8).map((ev, i) => (
+                  <li key={i} className="ml-4">
+                    <div className="absolute -left-1.5 mt-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#c9a84c]" />
+                    <p className="text-[0.6rem] text-[#a09a90]">
+                      {ev.timestamp}{ev.location && ` · ${ev.location}`}
+                    </p>
+                    <p className="text-[0.72rem] font-medium text-[#1a1714]">{ev.description}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

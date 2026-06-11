@@ -37,14 +37,20 @@ function getClient(): InstanceType<typeof ShipEngine> {
 function toShipEngineAddress(addr: ShippingAddress) {
   return {
     name:          addr.fullName   ?? '',
-    company:       addr.company    ?? '',
+    phone:         addr.phone      ?? '',
+    companyName:   addr.company    ?? '',
     addressLine1:  addr.street1,
     addressLine2:  addr.street2    ?? '',
     cityLocality:  addr.city,
     stateProvince: addr.state,
     postalCode:    addr.postalCode,
-    countryCode:   addr.country    ?? 'US',
-    phone:         addr.phone      ?? '',
+    // ShipEngine requires a strict Country code union — cast after normalising to uppercase
+    countryCode:   (addr.country ?? 'US').toUpperCase() as 'US' & string,
+    // Default to 'unknown'; ShipEngine uses this to optimise routing and rates
+    addressResidentialIndicator: (
+      addr.residential === true  ? 'yes' :
+      addr.residential === false ? 'no'  : 'unknown'
+    ) as 'unknown' | 'yes' | 'no',
   };
 }
 
@@ -57,34 +63,43 @@ export async function getShipEngineRates(
 ): Promise<ShippingRate[]> {
   const client = getClient();
 
-  const carrierIds = getCarrierIds();
+  const carrierIds = await resolveCarrierIds(client);
 
-  const result = await client.getRatesWithShipmentDetails({
-    shipment: {
-      shipFrom: toShipEngineAddress(origin),
-      shipTo:   toShipEngineAddress(destination),
-      packages: [
-        {
-          weight: {
-            value: pkg.weightLbs,
-            unit:  'pound',
-          },
-          dimensions: {
-            length: pkg.lengthIn,
-            width:  pkg.widthIn,
-            height: pkg.heightIn,
-            unit:   'inch',
-          },
-          ...(pkg.declaredValueUsd
-            ? { insuredValue: { currency: 'usd', amount: pkg.declaredValueUsd } }
-            : {}),
+  // The SDK's Params type is ShipmentParam & RateOptions where RateOptions
+  // requires rateOptions.carrierIds to always be present — the type doesn't
+  // allow omitting the key even though the API accepts its absence (uses all
+  // account carriers when omitted). We cast to `any` on the call site only,
+  // keeping all surrounding logic fully typed.
+  const shipment = {
+    shipFrom: toShipEngineAddress(origin),
+    shipTo:   toShipEngineAddress(destination),
+    packages: [
+      {
+        weight: {
+          value: pkg.weightLbs,
+          unit:  'pound',
         },
-      ],
-    },
-    rateOptions: {
-      ...(carrierIds.length > 0 ? { carrierIds } : {}),
-    },
-  });
+        dimensions: {
+          length: pkg.lengthIn,
+          width:  pkg.widthIn,
+          height: pkg.heightIn,
+          unit:   'inch',
+        },
+        ...(pkg.declaredValueUsd
+          ? { insuredValue: { currency: 'usd' as const, amount: pkg.declaredValueUsd } }
+          : {}),
+      },
+    ],
+  };
+
+  // Only include rateOptions when carrier IDs are configured; an empty object
+  // causes a ShipEngine business-rules error at runtime.
+  const payload = carrierIds.length > 0
+    ? { shipment, rateOptions: { carrierIds } }
+    : { shipment };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = await client.getRatesWithShipmentDetails(payload as any);
 
   const rates: ShippingRate[] = (result.rateResponse?.rates ?? [])
     .filter(
@@ -224,15 +239,53 @@ export async function validateShipEngineAddress(addr: ShippingAddress): Promise<
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Returns carrier IDs from SHIPENGINE_CARRIER_IDS env var.
- * When empty, ShipEngine uses all carriers connected to your account.
+ * Returns carrier IDs to use for rate requests.
+ *
+ * Priority:
+ *   1. SHIPENGINE_CARRIER_IDS env var (comma-separated) — fastest, no extra API call
+ *   2. Auto-fetched from the account via listCarriers() — cached in memory for the
+ *      lifetime of the server process so it only hits the API once.
+ *
+ * ShipEngine's API (and sandbox) requires at least one carrier ID in rate_options;
+ * it does NOT fall back to "all carriers" when the field is omitted.
+ *
  * Find your carrier IDs at: https://app.shipengine.com/settings/carriers
  */
-function getCarrierIds(): string[] {
-  return (process.env.SHIPENGINE_CARRIER_IDS ?? '')
+let _cachedCarrierIds: string[] | null = null;
+
+async function resolveCarrierIds(client: InstanceType<typeof ShipEngine>): Promise<string[]> {
+  // 1. Env var takes priority
+  const fromEnv = (process.env.SHIPENGINE_CARRIER_IDS ?? '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+
+  if (fromEnv.length > 0) return fromEnv;
+
+  // 2. Return cached value from a previous call
+  if (_cachedCarrierIds !== null) return _cachedCarrierIds;
+
+  // 3. Fetch from account and cache
+  try {
+    const carriers = await client.listCarriers();
+    _cachedCarrierIds = (carriers ?? [])
+      .map((c: any) => c.carrierId as string)
+      .filter(Boolean);
+
+    if (_cachedCarrierIds.length === 0) {
+      throw new Error(
+        'No carriers are connected to this ShipEngine account. ' +
+        'Add at least one carrier at https://app.shipengine.com/settings/carriers ' +
+        'or set SHIPENGINE_CARRIER_IDS in your .env.local.'
+      );
+    }
+
+    return _cachedCarrierIds;
+  } catch (err: any) {
+    // Re-throw with a clearer message if it's just the empty-list case
+    if (err.message?.includes('No carriers')) throw err;
+    throw new Error(`Failed to list ShipEngine carriers: ${err.message ?? err}`);
+  }
 }
 
 /**

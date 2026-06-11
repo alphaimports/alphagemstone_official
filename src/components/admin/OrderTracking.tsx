@@ -69,9 +69,12 @@ export default function OrderTracking({ orderId, trackingNumber }: Props) {
 
   if (!trackingNumber) {
     return (
-      <p className="text-sm text-gray-400 italic">
-        Your shipment label is being prepared. Check back soon.
-      </p>
+      <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        <p className="font-medium">Your order is being prepared for shipment.</p>
+        <p className="text-xs mt-1 text-amber-600">
+          A tracking number will appear here once your label is generated. Check back soon.
+        </p>
+      </div>
     );
   }
 

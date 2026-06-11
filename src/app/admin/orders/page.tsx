@@ -7,6 +7,7 @@ import {
   Package, Clock, Truck, CheckCircle, XCircle, RefreshCw,
   FileText, Printer, X, MapPin, AlertCircle,
 } from 'lucide-react';
+import AdminOrderShipping, { type OrderShippingData } from '@/components/admin/AdminOrderShipping';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface OrderItem {
@@ -64,13 +65,23 @@ interface Order {
   paymentMethod: string;
   paymentStatus: string;
   createdAt: string;
-  // carrier shipments
+  // ShipEngine shipping fields
+  shippingCarrier?:           string | null;
+  shippingService?:           string | null;
+  shippingServiceCode?:       string | null;
+  shippingRateId?:            string | null;
+  shippingRate?:              number;
+  shippingEstimatedDelivery?: string | null;
+  shippingEstimatedDays?:     number | null;
+  trackingNumber?:            string | null;
+  trackingUrl?:               string | null;
+  labelId?:                   string | null;
+  labelUrl?:                  string | null;
+  shippedAt?:                 string | null;
+  // legacy
   fedex?: CarrierShipment;
-  usps?: CarrierShipment;
-  ups?: CarrierShipment;
-  // unified tracking number (whichever carrier was used)
-  trackingNumber?: string;
-  shippingCarrier?: 'FedEx' | 'USPS' | 'UPS';
+  usps?:  CarrierShipment;
+  ups?:   CarrierShipment;
 }
 
 interface Pagination {
@@ -92,49 +103,6 @@ const STATUS_CONFIG: Record<string, {
   cancelled:  { label: 'Cancelled',  bg: '#fdf0f0', text: '#9e2d2d', border: '#d48080', icon: XCircle },
   refunded:   { label: 'Refunded',   bg: '#f5f5f5', text: '#5a5a5a', border: '#b0b0b0', icon: RefreshCw },
 };
-
-// Carrier visual identity
-const CARRIER_CONFIG = {
-  FedEx: {
-    color: '#4D148C',
-    accent: '#FF6600',
-    bg: '#f8f4ff',
-    border: '#d4b8f0',
-    text: '#4D148C',
-    badgeBg: '#f3eefb',
-    badgeText: '#5a2d8b',
-    badgeBorder: '#b090d4',
-    apiPrefix: 'fedex',
-    labelRoute: 'fedex-label',
-  },
-  USPS: {
-    color: '#333366',
-    accent: '#CC0000',
-    bg: '#fff0f0',
-    border: '#f0b8b8',
-    text: '#333366',
-    badgeBg: '#fff0f0',
-    badgeText: '#9e2d2d',
-    badgeBorder: '#d48080',
-    apiPrefix: 'usps',
-    labelRoute: 'usps-label',
-  },
-  UPS: {
-    color: '#351C15',
-    accent: '#FFB500',
-    bg: '#fffbf0',
-    border: '#f0d880',
-    text: '#351C15',
-    badgeBg: '#fffbf0',
-    badgeText: '#7a5a00',
-    badgeBorder: '#d4b800',
-    apiPrefix: 'ups',
-    labelRoute: 'ups-label',
-  },
-} as const;
-
-// Maps lowercase order keys → correctly-cased CARRIER_CONFIG keys
-const CARRIER_KEY_MAP = { fedex: 'FedEx', usps: 'USPS', ups: 'UPS' } as const;
 
 const ALL_STATUSES = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
 
@@ -265,13 +233,40 @@ function Invoice({ order, onClose }: { order: Order; onClose: () => void }) {
               </div>
             </div>
           </div>
-          <div style={{ borderTop: '1px solid #ede9e1', paddingTop: 28, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+          <div style={{ borderTop: '1px solid #ede9e1', paddingTop: 28, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, marginBottom: 28 }}>
+            {/* Payment */}
             <div>
-              <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a09a90', fontWeight: 600, marginBottom: 10 }}>Payment Details</div>
+              <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a09a90', fontWeight: 600, marginBottom: 10 }}>Payment</div>
               <div style={{ fontSize: 13, color: '#1a1714', fontWeight: 500, textTransform: 'capitalize', marginBottom: 4 }}>{order.paymentMethod}</div>
               <div style={{ fontSize: 11, color: '#a09a90', fontFamily: 'monospace' }}>Ref: {order._id.slice(-12).toUpperCase()}</div>
               <div style={{ marginTop: 8, fontSize: 11, color: order.paymentStatus === 'completed' ? '#2d6b2d' : '#8b5e1a', fontWeight: 500, textTransform: 'capitalize' }}>Payment {order.paymentStatus}</div>
             </div>
+            {/* Shipping */}
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a09a90', fontWeight: 600, marginBottom: 10 }}>Shipping</div>
+              {order.shippingCarrier ? (
+                <>
+                  <div style={{ fontSize: 13, color: '#1a1714', fontWeight: 500, marginBottom: 4 }}>{order.shippingCarrier}</div>
+                  {order.shippingService && <div style={{ fontSize: 11, color: '#6b6560', marginBottom: 4 }}>{order.shippingService}</div>}
+                  {order.trackingNumber && (
+                    <div style={{ fontSize: 11, color: '#a09a90', fontFamily: 'monospace', marginBottom: 4 }}>
+                      #{order.trackingNumber}
+                    </div>
+                  )}
+                  {order.shippingEstimatedDelivery && (
+                    <div style={{ fontSize: 11, color: '#6b6560' }}>Est. {order.shippingEstimatedDelivery}</div>
+                  )}
+                  {order.shippedAt && (
+                    <div style={{ fontSize: 11, color: '#6b6560', marginTop: 4 }}>
+                      Shipped {new Date(order.shippedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: '#c4bdb2', fontStyle: 'italic' }}>Awaiting shipment</div>
+              )}
+            </div>
+            {/* Notes */}
             <div>
               <div style={{ fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#a09a90', fontWeight: 600, marginBottom: 10 }}>Notes</div>
               <div style={{ fontSize: 12, color: '#8a8278', lineHeight: 1.7 }}>Thank you for your purchase. All gemstones come with a certificate of authenticity. For enquiries, contact support@alphaimports.com</div>
@@ -332,233 +327,60 @@ function StatusSelect({ orderId, current, onUpdate }: {
   );
 }
 
-// ─── Generic Carrier Shipping Panel ──────────────────────────────────────────
-function CarrierPanel({
-  carrier,
-  order,
-  onLabelGenerated,
-}: {
-  carrier: 'FedEx' | 'USPS' | 'UPS';
-  order: Order;
-  onLabelGenerated: (orderId: string, carrier: 'FedEx' | 'USPS' | 'UPS', shipment: CarrierShipment) => void;
-}) {
-  const authFetch = useAuthFetch();
-  const cfg = CARRIER_CONFIG[carrier];
-
-  // shipment stored per-carrier key on the order object
-  const carrierKey = carrier.toLowerCase() as 'fedex' | 'usps' | 'ups';
-  const [shipment, setShipment] = useState<CarrierShipment | undefined>(order[carrierKey] as CarrierShipment | undefined);
-  const [tracking, setTracking] = useState<TrackingData | null>(null);
-  const [labelLoading, setLabelLoading] = useState(false);
-  const [trackLoading, setTrackLoading] = useState(false);
-  const [trackOpen, setTrackOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const isPaid = order.paymentStatus === 'completed';
-
-  async function handleGenerate() {
-    setLabelLoading(true);
-    setError(null);
-    try {
-      const res = await authFetch(`/api/admin/orders/${order._id}/${cfg.labelRoute}`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? `Failed to generate ${carrier} label`);
-      const newShipment = (data.data?.order?.[carrierKey] ?? data.data?.[carrierKey]) as CarrierShipment;
-      setShipment(newShipment);
-      onLabelGenerated(order._id, carrier, newShipment);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLabelLoading(false);
-    }
-  }
-
-  async function handleTrack() {
-    if (tracking) { setTrackOpen(o => !o); return; }
-    setTrackLoading(true);
-    setError(null);
-    try {
-      const res = await authFetch(`/api/shipping/track`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trackingNumber: shipment!.trackingNumber, carrier: cfg.apiPrefix }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? 'Failed to fetch tracking');
-      setTracking(data.data);
-      setTrackOpen(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setTrackLoading(false);
-    }
-  }
-
-  function handlePrint() {
-    window.open(`/api/admin/orders/${order._id}/${cfg.labelRoute}/download`, '_blank');
-  }
-
-  return (
-    <div
-      className="rounded-xl p-4 space-y-3"
-      style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div
-            className="w-5 h-5 rounded flex items-center justify-center"
-            style={{ background: cfg.color }}
-          >
-            <Truck size={10} style={{ color: cfg.accent }} />
-          </div>
-          <span
-            className="text-[0.65rem] font-bold uppercase tracking-widest"
-            style={{ color: cfg.color }}
-          >
-            {carrier}
-          </span>
-        </div>
-        {shipment && (
-          <span className="text-[0.6rem] font-mono text-[#a09a90]">{shipment.trackingNumber}</span>
-        )}
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-100 px-3 py-2">
-          <AlertCircle size={12} className="text-red-400 mt-0.5 shrink-0" />
-          <p className="text-[0.68rem] text-red-600">{error}</p>
-        </div>
-      )}
-
-      {/* Shipment info */}
-      {shipment ? (
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[0.68rem]">
-          <span className="text-[#a09a90]">Service</span>
-          <span className="font-medium text-[#1a1714]">{shipment.serviceType.replace(/_/g, ' ')}</span>
-          {shipment.estimatedDelivery && (
-            <>
-              <span className="text-[#a09a90]">Est. Delivery</span>
-              <span className="font-medium text-[#1a1714]">{new Date(shipment.estimatedDelivery).toLocaleDateString()}</span>
-            </>
-          )}
-          <span className="text-[#a09a90]">Label Created</span>
-          <span className="text-[#1a1714]">{new Date(shipment.createdAt).toLocaleString()}</span>
-        </div>
-      ) : (
-        <p className="text-[0.68rem] text-[#c4bdb2] italic">
-          {isPaid ? `No ${carrier} label yet — generate one below.` : 'Available after payment is completed.'}
-        </p>
-      )}
-
-      {/* Action buttons */}
-      <div className="flex flex-wrap gap-2 pt-1">
-        <button
-          onClick={handleGenerate}
-          disabled={labelLoading || !isPaid}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[0.68rem] font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:opacity-90"
-          style={{ background: cfg.color }}
-        >
-          <Package size={11} />
-          {labelLoading ? 'Generating…' : shipment ? 'Regenerate' : 'Generate Label'}
-        </button>
-
-        {shipment && (
-          <>
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[0.68rem] font-semibold border border-[#ede9e1] text-[#6b6560] hover:bg-white transition-colors"
-            >
-              <Printer size={11} /> Print Label
-            </button>
-            <button
-              onClick={handleTrack}
-              disabled={trackLoading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[0.68rem] font-semibold border border-[#ede9e1] text-[#6b6560] hover:bg-white disabled:opacity-40 transition-colors"
-            >
-              <MapPin size={11} />
-              {trackLoading ? 'Loading…' : trackOpen ? 'Hide Tracking' : 'Live Tracking'}
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Live tracking timeline */}
-      {trackOpen && tracking && (
-        <div className="pt-3 border-t border-[#ede9e1] space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[0.72rem] font-semibold text-[#1a1714]">
-              {tracking.statusDescription || tracking.status}
-            </span>
-            {(tracking.estimatedDelivery || tracking.actualDelivery) && (
-              <span className="text-[0.62rem] text-[#a09a90]">
-                {tracking.actualDelivery
-                  ? `✓ Delivered ${new Date(tracking.actualDelivery).toLocaleDateString()}`
-                  : `Est. ${new Date(tracking.estimatedDelivery!).toLocaleDateString()}`}
-              </span>
-            )}
-          </div>
-          {tracking.events.length > 0 && (
-            <ol className="relative border-l border-[#ede9e1] space-y-3 ml-2">
-              {tracking.events.slice(0, 6).map((ev, i) => (
-                <li key={i} className="ml-3.5">
-                  <div
-                    className="absolute -left-1.5 mt-1 h-2.5 w-2.5 rounded-full border-2 border-white"
-                    style={{ background: cfg.accent }}
-                  />
-                  <p className="text-[0.6rem] text-[#a09a90]">
-                    {new Date(ev.timestamp).toLocaleString()}{ev.location && ` · ${ev.location}`}
-                  </p>
-                  <p className="text-[0.68rem] font-medium text-[#1a1714]">{ev.description}</p>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Shipping Indicator for table row ─────────────────────────────────────────
 function ShippingIndicator({ order }: { order: Order }) {
-  const hasAny = order.fedex || order.usps || order.ups;
-
-  if (!hasAny && order.paymentStatus !== 'completed') {
-    return <span className="text-[0.6rem] text-[#c4bdb2]">—</span>;
-  }
-
-  if (!hasAny) {
+  if (order.trackingNumber) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6rem] font-semibold" style={{ background: '#fdf5e6', color: '#8b5e1a', border: '1px solid #e0c070' }}>
-        <Package size={8} /> Pending
+      <div className="flex flex-col gap-0.5">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6rem] font-semibold"
+          style={{ background: '#edf7ed', color: '#2d6b2d', border: '1px solid #80c880' }}>
+          <Truck size={8} /> Shipped
+        </span>
+        <span className="font-mono text-[0.58rem] text-[#a09a90] truncate max-w-[110px]">{order.trackingNumber}</span>
+      </div>
+    );
+  }
+  if (order.shippingRateId && order.paymentStatus === 'completed') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6rem] font-semibold"
+        style={{ background: '#e8f0fb', color: '#1a4a9e', border: '1px solid #7ab0c9' }}>
+        <Package size={8} /> Label Ready
       </span>
     );
   }
-
-  const carriers = (['fedex', 'usps', 'ups'] as const).filter(c => order[c]);
-  return (
-    <div className="flex flex-wrap gap-1">
-      {carriers.map(c => {
-        const key = CARRIER_KEY_MAP[c];
-        const carrierCfg = CARRIER_CONFIG[key];
-        return (
-          <span key={c} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[0.58rem] font-bold"
-            style={{ background: carrierCfg.badgeBg, color: carrierCfg.badgeText, border: `1px solid ${carrierCfg.badgeBorder}` }}>
-            <Truck size={7} />{key}
-          </span>
-        );
-      })}
-    </div>
-  );
+  if (order.shippingRateId) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.6rem] font-semibold"
+        style={{ background: '#fdf5e6', color: '#8b5e1a', border: '1px solid #e0c070' }}>
+        <Clock size={8} /> Rate Selected
+      </span>
+    );
+  }
+  return <span className="text-[0.6rem] text-[#c4bdb2]">—</span>;
 }
 
 // ─── Expanded Order Detail ────────────────────────────────────────────────────
-function OrderDetail({ order, onLabelGenerated }: {
+function OrderDetail({ order, onShippingUpdate }: {
   order: Order;
-  onLabelGenerated: (orderId: string, carrier: 'FedEx' | 'USPS' | 'UPS', shipment: CarrierShipment) => void;
+  onShippingUpdate: (orderId: string, updated: Partial<Order>) => void;
 }) {
+  const shippingData: OrderShippingData = {
+    _id:                        order._id,
+    shippingCarrier:            order.shippingCarrier,
+    shippingService:            order.shippingService,
+    shippingRateId:             order.shippingRateId,
+    shippingRate:               order.shippingRate,
+    shippingEstimatedDelivery:  order.shippingEstimatedDelivery,
+    shippingEstimatedDays:      order.shippingEstimatedDays,
+    trackingNumber:             order.trackingNumber,
+    trackingUrl:                order.trackingUrl,
+    labelId:                    order.labelId,
+    labelUrl:                   order.labelUrl,
+    shippedAt:                  order.shippedAt,
+    status:                     order.status,
+    paymentStatus:              order.paymentStatus,
+  };
+
   return (
     <div className="bg-[#faf9f7] border-t border-[#ede9e1] px-6 py-5">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
@@ -578,7 +400,11 @@ function OrderDetail({ order, onLabelGenerated }: {
             ))}
           </div>
           <div className="mt-3 pt-3 border-t border-[#ede9e1] grid grid-cols-3 gap-2 text-center">
-            {[{ label: 'Subtotal', value: `$${order.subtotal.toLocaleString()}` }, { label: 'Tax', value: `$${order.tax.toFixed(2)}` }, { label: 'Total', value: `$${order.totalAmount.toLocaleString()}` }].map(({ label, value }) => (
+            {[
+              { label: 'Subtotal', value: `$${order.subtotal.toLocaleString()}` },
+              { label: 'Tax',      value: `$${order.tax.toFixed(2)}` },
+              { label: 'Total',    value: `$${order.totalAmount.toLocaleString()}` },
+            ].map(({ label, value }) => (
               <div key={label}>
                 <p className="text-[0.6rem] uppercase tracking-widest text-[#a09a90]">{label}</p>
                 <p className={`text-[0.8rem] font-semibold ${label === 'Total' ? 'text-[#c9a84c]' : 'text-[#1a1714]'}`}>{value}</p>
@@ -601,17 +427,11 @@ function OrderDetail({ order, onLabelGenerated }: {
         </div>
       </div>
 
-      {/* ── Three carrier panels side by side ── */}
-      <div>
-        <p className="text-[0.62rem] tracking-widest uppercase text-[#a09a90] font-semibold mb-3">
-          Shipping Labels & Tracking
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <CarrierPanel carrier="FedEx" order={order} onLabelGenerated={onLabelGenerated} />
-          <CarrierPanel carrier="USPS"  order={order} onLabelGenerated={onLabelGenerated} />
-          <CarrierPanel carrier="UPS"   order={order} onLabelGenerated={onLabelGenerated} />
-        </div>
-      </div>
+      {/* ── ShipEngine Shipping Panel ── */}
+      <AdminOrderShipping
+        order={shippingData}
+        onUpdate={(updated) => onShippingUpdate(order._id, updated as Partial<Order>)}
+      />
     </div>
   );
 }
@@ -647,12 +467,9 @@ export default function AdminOrdersPage() {
     setOrders(prev => prev.map(o => o._id === id ? { ...o, status: newStatus } : o));
   };
 
-  const handleLabelGenerated = (orderId: string, carrier: 'FedEx' | 'USPS' | 'UPS', shipment: CarrierShipment) => {
-    const key = carrier.toLowerCase() as 'fedex' | 'usps' | 'ups';
+  const handleShippingUpdate = (orderId: string, updated: Partial<Order>) => {
     setOrders(prev => prev.map(o =>
-      o._id === orderId
-        ? { ...o, [key]: shipment, status: o.status === 'paid' ? 'processing' : o.status }
-        : o
+      o._id === orderId ? { ...o, ...updated } : o
     ));
   };
 
@@ -798,7 +615,7 @@ export default function AdminOrdersPage() {
 
                 {/* Expanded detail */}
                 {expandedId === order._id && (
-                  <OrderDetail order={order} onLabelGenerated={handleLabelGenerated} />
+                  <OrderDetail order={order} onShippingUpdate={handleShippingUpdate} />
                 )}
               </div>
             ))
